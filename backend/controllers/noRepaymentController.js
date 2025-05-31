@@ -2,6 +2,8 @@ const { sequelize } = require('../config/database');
 const { validationResult } = require('express-validator');
 
 // Get all loans with no repayments within date range
+// Add this debug version of getLoansWithNoRepayment function
+// Replace the existing getLoansWithNoRepayment function with this updated version
 const getLoansWithNoRepayment = async (req, res) => {
     try {
         const {
@@ -9,18 +11,9 @@ const getLoansWithNoRepayment = async (req, res) => {
             limit = 10,
             sort_by = 'disbursement_date',
             sort_order = 'DESC',
-            
-            // Date range parameters
-            check_period_start,
-            check_period_end,
-            disbursement_start,
-            disbursement_end,
-            
-            // No repayment criteria
-            criteria = 'no_payments_ever', // 'no_payments_ever', 'no_payments_in_period', 'missed_expected_payments'
-            expected_payment_days = 30, // Days after disbursement when first payment was expected
-            
-            // Existing filters
+            criteria = 'no_payments_ever',
+            expected_payment_days = 30,
+            include_non_disbursed = 'true', // New parameter
             min_amount,
             max_amount,
             min_days_since_disbursement,
@@ -29,33 +22,27 @@ const getLoansWithNoRepayment = async (req, res) => {
             loan_officer_id,
             loan_type_id,
             client_status,
-            risk_category,
             search
         } = req.query;
 
+        console.log('🔍 Debug - Query parameters:', req.query);
+
         const offset = (page - 1) * limit;
 
-        // Build base where clause
-        let whereClause = `WHERE l.status IN ('disbursed', 'active') AND l.disbursement_date IS NOT NULL`;
+        // Build base where clause - Modified to handle non-disbursed loans
+        let whereClause = `WHERE l.status IN ('disbursed', 'active')`;
         let replacements = [];
 
-        // Add disbursement date range filter
-        if (disbursement_start) {
-            whereClause += ' AND l.disbursement_date >= ?';
-            replacements.push(disbursement_start);
+        // Only require disbursement_date if we're not including non-disbursed loans
+        if (include_non_disbursed !== 'true') {
+            whereClause += ` AND l.disbursement_date IS NOT NULL`;
         }
 
-        if (disbursement_end) {
-            whereClause += ' AND l.disbursement_date <= ?';
-            replacements.push(disbursement_end);
-        }
-
-        // Build no repayment criteria based on selected criteria
+        // Build no repayment condition based on criteria
         let noRepaymentCondition = '';
         
         switch (criteria) {
             case 'no_payments_ever':
-                // Loans with absolutely no payments since disbursement
                 noRepaymentCondition = `
                     AND l.id NOT IN (
                         SELECT DISTINCT loan_id 
@@ -65,30 +52,10 @@ const getLoansWithNoRepayment = async (req, res) => {
                 `;
                 break;
                 
-            case 'no_payments_in_period':
-                // Loans with no payments within specified date range
-                if (!check_period_start || !check_period_end) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'check_period_start and check_period_end are required for no_payments_in_period criteria'
-                    });
-                }
-                
-                noRepaymentCondition = `
-                    AND l.id NOT IN (
-                        SELECT DISTINCT loan_id 
-                        FROM loan_payments 
-                        WHERE loan_id = l.id 
-                        AND payment_date BETWEEN ? AND ?
-                    )
-                `;
-                replacements.push(check_period_start, check_period_end);
-                break;
-                
             case 'missed_expected_payments':
-                // Loans that should have had payments by now but don't
                 const expectedDays = parseInt(expected_payment_days);
                 noRepaymentCondition = `
+                    AND l.disbursement_date IS NOT NULL
                     AND DATEDIFF(CURDATE(), l.disbursement_date) >= ?
                     AND l.id NOT IN (
                         SELECT DISTINCT loan_id 
@@ -100,50 +67,7 @@ const getLoansWithNoRepayment = async (req, res) => {
                 replacements.push(expectedDays, expectedDays);
                 break;
                 
-            case 'no_payments_since_date':
-                // Loans with no payments since a specific date
-                if (!check_period_start) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'check_period_start is required for no_payments_since_date criteria'
-                    });
-                }
-                
-                noRepaymentCondition = `
-                    AND l.id NOT IN (
-                        SELECT DISTINCT loan_id 
-                        FROM loan_payments 
-                        WHERE loan_id = l.id 
-                        AND payment_date >= ?
-                    )
-                    AND l.disbursement_date < ?
-                `;
-                replacements.push(check_period_start, check_period_start);
-                break;
-                
-            case 'payment_gap_exceeded':
-                // Loans with payment gaps exceeding specified days
-                const gapDays = parseInt(expected_payment_days) || 60;
-                noRepaymentCondition = `
-                    AND (
-                        -- No payments at all and gap exceeded
-                        (l.id NOT IN (SELECT DISTINCT loan_id FROM loan_payments WHERE loan_id = l.id)
-                         AND DATEDIFF(CURDATE(), l.disbursement_date) > ?)
-                        OR
-                        -- Last payment was too long ago
-                        (l.id IN (SELECT DISTINCT loan_id FROM loan_payments WHERE loan_id = l.id)
-                         AND DATEDIFF(CURDATE(), (
-                             SELECT MAX(payment_date) 
-                             FROM loan_payments 
-                             WHERE loan_id = l.id
-                         )) > ?)
-                    )
-                `;
-                replacements.push(gapDays, gapDays);
-                break;
-                
             default:
-                // Default to no payments ever
                 noRepaymentCondition = `
                     AND l.id NOT IN (
                         SELECT DISTINCT loan_id 
@@ -169,12 +93,12 @@ const getLoansWithNoRepayment = async (req, res) => {
         }
 
         if (min_days_since_disbursement) {
-            conditions.push('DATEDIFF(CURDATE(), l.disbursement_date) >= ?');
+            conditions.push('l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) >= ?');
             replacements.push(min_days_since_disbursement);
         }
 
         if (max_days_since_disbursement) {
-            conditions.push('DATEDIFF(CURDATE(), l.disbursement_date) <= ?');
+            conditions.push('l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) <= ?');
             replacements.push(max_days_since_disbursement);
         }
 
@@ -189,7 +113,7 @@ const getLoansWithNoRepayment = async (req, res) => {
         }
 
         if (loan_type_id) {
-            conditions.push('l.loan_type_id = ?');
+            conditions.push('l.loan_type = ?');
             replacements.push(loan_type_id);
         }
 
@@ -215,6 +139,9 @@ const getLoansWithNoRepayment = async (req, res) => {
             whereClause += ' AND ' + conditions.join(' AND ');
         }
 
+        console.log('🔍 Debug - Where clause:', whereClause);
+        console.log('🔍 Debug - Replacements:', replacements);
+
         // Get total count
         const [countResult] = await sequelize.query(`
             SELECT COUNT(*) as total 
@@ -224,6 +151,7 @@ const getLoansWithNoRepayment = async (req, res) => {
         `, { replacements });
 
         const total = countResult[0].total;
+        console.log('🔍 Debug - Total matching loans:', total);
 
         // Get loans with no repayments
         const [loans] = await sequelize.query(`
@@ -234,10 +162,6 @@ const getLoansWithNoRepayment = async (req, res) => {
                 l.client_id,
                 l.disbursed_amount,
                 l.loan_balance,
-                l.principal_balance,
-                l.interest_balance,
-                l.installment_amount,
-                l.total_installments,
                 l.disbursement_date,
                 l.maturity_date,
                 l.first_payment_date,
@@ -261,13 +185,20 @@ const getLoansWithNoRepayment = async (req, res) => {
                 lt.category as loan_type_category,
                 
                 -- Loan officer information
-                CONCAT(u.first_name, ' ', u.last_name) as loan_officer_name,
+                CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as loan_officer_name,
                 u.employee_id as loan_officer_employee_id,
                 u.mobile as loan_officer_mobile,
                 
-                -- Calculated fields
-                DATEDIFF(CURDATE(), l.disbursement_date) as days_since_disbursement,
-                DATEDIFF(CURDATE(), l.first_payment_date) as days_past_first_payment,
+                -- Calculated fields (handle null disbursement_date)
+                CASE 
+                    WHEN l.disbursement_date IS NOT NULL THEN DATEDIFF(CURDATE(), l.disbursement_date)
+                    ELSE NULL
+                END as days_since_disbursement,
+                
+                CASE 
+                    WHEN l.first_payment_date IS NOT NULL THEN DATEDIFF(CURDATE(), l.first_payment_date)
+                    ELSE NULL
+                END as days_past_first_payment,
                 
                 -- Payment analysis
                 (SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id) as total_payments_made,
@@ -275,57 +206,23 @@ const getLoansWithNoRepayment = async (req, res) => {
                 (SELECT MAX(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id) as last_payment_date,
                 (SELECT MIN(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id) as first_payment_made_date,
                 
-                -- Date range specific analysis
-                ${criteria === 'no_payments_in_period' ? `
-                (SELECT COUNT(*) FROM loan_payments lp 
-                 WHERE lp.loan_id = l.id 
-                 AND lp.payment_date BETWEEN '${check_period_start}' AND '${check_period_end}') as payments_in_check_period,
-                (SELECT SUM(amount) FROM loan_payments lp 
-                 WHERE lp.loan_id = l.id 
-                 AND lp.payment_date BETWEEN '${check_period_start}' AND '${check_period_end}') as amount_paid_in_check_period,
-                ` : ''}
-                
-                -- Expected vs actual payments
+                -- Risk assessment (handle null disbursement_date)
                 CASE 
-                    WHEN l.repayment_frequency = 'monthly' THEN 
-                        FLOOR(DATEDIFF(CURDATE(), l.disbursement_date) / 30)
-                    WHEN l.repayment_frequency = 'weekly' THEN 
-                        FLOOR(DATEDIFF(CURDATE(), l.disbursement_date) / 7)
-                    WHEN l.repayment_frequency = 'bi_weekly' THEN 
-                        FLOOR(DATEDIFF(CURDATE(), l.disbursement_date) / 14)
-                    WHEN l.repayment_frequency = 'quarterly' THEN 
-                        FLOOR(DATEDIFF(CURDATE(), l.disbursement_date) / 90)
-                    ELSE 0
-                END as expected_payments_count,
-                
-                -- Payment gap analysis
-                CASE 
-                    WHEN (SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id) = 0 THEN 
-                        DATEDIFF(CURDATE(), l.disbursement_date)
-                    ELSE 
-                        DATEDIFF(CURDATE(), (SELECT MAX(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id))
-                END as days_since_last_payment,
-                
-                -- Risk assessment
-                CASE 
+                    WHEN l.disbursement_date IS NULL THEN 'NOT_DISBURSED'
                     WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN 'LOW'
                     WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 90 THEN 'MEDIUM'
                     WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 180 THEN 'HIGH'
                     ELSE 'CRITICAL'
                 END as risk_category,
                 
-                -- Payment status based on criteria
+                -- Payment status
                 CASE 
+                    WHEN l.disbursement_date IS NULL THEN 'NOT_DISBURSED'
+                    WHEN l.first_payment_date IS NULL THEN 'NO_SCHEDULE'
                     WHEN l.first_payment_date < CURDATE() THEN 'OVERDUE'
                     WHEN l.first_payment_date = CURDATE() THEN 'DUE_TODAY'
                     ELSE 'NOT_YET_DUE'
                 END as payment_status,
-                
-                -- Financial impact
-                ROUND(
-                    (l.disbursed_amount * l.nominal_interest_rate / 100 / 12) * 
-                    DATEDIFF(CURDATE(), l.disbursement_date) / 30, 2
-                ) as estimated_interest_loss,
                 
                 -- Recovery actions count
                 (SELECT COUNT(*) 
@@ -337,74 +234,52 @@ const getLoansWithNoRepayment = async (req, res) => {
                  FROM loan_recovery_actions lra 
                  WHERE lra.loan_id = l.id) as last_contact_date,
                  
-                -- Criteria-specific information
-                '${criteria}' as no_repayment_criteria,
-                ${check_period_start ? `'${check_period_start}'` : 'NULL'} as check_period_start,
-                ${check_period_end ? `'${check_period_end}'` : 'NULL'} as check_period_end
+                -- Criteria information
+                '${criteria}' as no_repayment_criteria
                 
             FROM loans l
             JOIN clients c ON l.client_id = c.id
-            JOIN loan_types lt ON l.loan_type_id = lt.id
+            LEFT JOIN loan_types lt ON l.loan_type = lt.id
             LEFT JOIN users u ON l.loan_officer_id = u.id
             ${whereClause}
-            ORDER BY ${sort_by} ${sort_order}
+            ORDER BY 
+                CASE WHEN '${sort_by}' = 'disbursement_date' AND l.disbursement_date IS NULL THEN 1 ELSE 0 END,
+                ${sort_by === 'disbursement_date' ? 'l.disbursement_date' : sort_by} ${sort_order}
             LIMIT ? OFFSET ?
         `, {
             replacements: [...replacements, parseInt(limit), parseInt(offset)]
         });
 
+        console.log('🔍 Debug - Found loans:', loans.length);
+
         // Calculate summary statistics
         const [summary] = await sequelize.query(`
             SELECT 
                 COUNT(*) as total_loans_no_repayment,
-                SUM(l.disbursed_amount) as total_amount_at_risk,
-                AVG(l.disbursed_amount) as avg_loan_amount,
-                SUM(ROUND(
-                    (l.disbursed_amount * l.nominal_interest_rate / 100 / 12) * 
-                    DATEDIFF(CURDATE(), l.disbursement_date) / 30, 2
-                )) as total_estimated_interest_loss,
-                AVG(DATEDIFF(CURDATE(), l.disbursement_date)) as avg_days_since_disbursement,
+                SUM(COALESCE(l.disbursed_amount, 0)) as total_amount_at_risk,
+                AVG(COALESCE(l.disbursed_amount, 0)) as avg_loan_amount,
+                AVG(CASE 
+                    WHEN l.disbursement_date IS NOT NULL THEN DATEDIFF(CURDATE(), l.disbursement_date)
+                    ELSE NULL
+                END) as avg_days_since_disbursement,
                 
                 -- Risk distribution
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN 1 ELSE 0 END) as low_risk_count,
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 31 AND 90 THEN 1 ELSE 0 END) as medium_risk_count,
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 91 AND 180 THEN 1 ELSE 0 END) as high_risk_count,
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) > 180 THEN 1 ELSE 0 END) as critical_risk_count,
+                SUM(CASE WHEN l.disbursement_date IS NULL THEN 1 ELSE 0 END) as not_disbursed_count,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN 1 ELSE 0 END) as low_risk_count,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 31 AND 90 THEN 1 ELSE 0 END) as medium_risk_count,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 91 AND 180 THEN 1 ELSE 0 END) as high_risk_count,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) > 180 THEN 1 ELSE 0 END) as critical_risk_count,
                 
                 -- Amount distribution by risk
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN l.disbursed_amount ELSE 0 END) as low_risk_amount,
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 31 AND 90 THEN l.disbursed_amount ELSE 0 END) as medium_risk_amount,
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 91 AND 180 THEN l.disbursed_amount ELSE 0 END) as high_risk_amount,
-                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) > 180 THEN l.disbursed_amount ELSE 0 END) as critical_risk_amount,
+                SUM(CASE WHEN l.disbursement_date IS NULL THEN COALESCE(l.disbursed_amount, 0) ELSE 0 END) as not_disbursed_amount,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN COALESCE(l.disbursed_amount, 0) ELSE 0 END) as low_risk_amount,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 31 AND 90 THEN COALESCE(l.disbursed_amount, 0) ELSE 0 END) as medium_risk_amount,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 91 AND 180 THEN COALESCE(l.disbursed_amount, 0) ELSE 0 END) as high_risk_amount,
+                SUM(CASE WHEN l.disbursement_date IS NOT NULL AND DATEDIFF(CURDATE(), l.disbursement_date) > 180 THEN COALESCE(l.disbursed_amount, 0) ELSE 0 END) as critical_risk_amount,
                 
                 -- Payment analysis
                 AVG((SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id)) as avg_payments_per_loan,
-                SUM((SELECT COALESCE(SUM(amount), 0) FROM loan_payments lp WHERE lp.loan_id = l.id)) as total_amount_ever_paid,
-                
-                -- Date range specific summary
-                ${criteria === 'no_payments_in_period' ? `
-                AVG((SELECT COUNT(*) FROM loan_payments lp 
-                     WHERE lp.loan_id = l.id 
-                     AND lp.payment_date BETWEEN '${check_period_start}' AND '${check_period_end}')) as avg_payments_in_period,
-                SUM((SELECT COALESCE(SUM(amount), 0) FROM loan_payments lp 
-                     WHERE lp.loan_id = l.id 
-                     AND lp.payment_date BETWEEN '${check_period_start}' AND '${check_period_end}')) as total_paid_in_period,
-                ` : ''}
-                
-                -- Payment gap analysis
-                AVG(CASE 
-                    WHEN (SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id) = 0 THEN 
-                        DATEDIFF(CURDATE(), l.disbursement_date)
-                    ELSE 
-                        DATEDIFF(CURDATE(), (SELECT MAX(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id))
-                END) as avg_days_since_last_payment,
-                
-                MAX(CASE 
-                    WHEN (SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id) = 0 THEN 
-                        DATEDIFF(CURDATE(), l.disbursement_date)
-                    ELSE 
-                        DATEDIFF(CURDATE(), (SELECT MAX(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id))
-                END) as max_days_since_last_payment
+                SUM((SELECT COALESCE(SUM(amount), 0) FROM loan_payments lp WHERE lp.loan_id = l.id)) as total_amount_ever_paid
                 
             FROM loans l
             JOIN clients c ON l.client_id = c.id
@@ -424,12 +299,9 @@ const getLoansWithNoRepayment = async (req, res) => {
                 },
                 criteria_info: {
                     criteria,
-                    check_period_start,
-                    check_period_end,
-                    disbursement_start,
-                    disbursement_end,
                     expected_payment_days,
-                    description: getCriteriaDescription(criteria, check_period_start, check_period_end, expected_payment_days)
+                    include_non_disbursed,
+                    description: getCriteriaDescription(criteria, null, null, expected_payment_days)
                 },
                 filters_applied: {
                     min_amount,
@@ -446,7 +318,7 @@ const getLoansWithNoRepayment = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Get loans with no repayment error:', error);
+                console.error('❌ Get loans with no repayment error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching loans with no repayment',
@@ -454,6 +326,8 @@ const getLoansWithNoRepayment = async (req, res) => {
         });
     }
 };
+
+
 
 // Get detailed payment timeline analysis for a specific loan
 const getLoanPaymentTimelineAnalysis = async (req, res) => {
@@ -478,7 +352,7 @@ const getLoanPaymentTimelineAnalysis = async (req, res) => {
                 CONCAT(u.first_name, ' ', u.last_name) as loan_officer_name
             FROM loans l
             JOIN clients c ON l.client_id = c.id
-            JOIN loan_types lt ON l.loan_type_id = lt.id
+            JOIN loan_types lt ON l.loan_type = lt.id
             LEFT JOIN users u ON l.loan_officer_id = u.id
             WHERE l.id = ?
         `, { replacements: [loan_id] });
@@ -697,7 +571,7 @@ const getNoRepaymentAnalytics = async (req, res) => {
         }
 
         if (loan_type_id) {
-            whereClause += ' AND l.loan_type_id = ?';
+            whereClause += ' AND l.loan_type = ?';
             replacements.push(loan_type_id);
         }
 
@@ -757,7 +631,7 @@ const getNoRepaymentAnalytics = async (req, res) => {
                 
                 -- Financial impact
                 SUM(ROUND(
-                    (l.disbursed_amount * l.nominal_interest_rate / 100 / 12) * 
+                    (l.disbursed_amount * l.interest_rate / 100 / 12) * 
                     DATEDIFF(CURDATE(), l.disbursement_date) / 30, 2
                 )) as total_estimated_interest_loss,
                 
@@ -803,7 +677,7 @@ const getNoRepaymentAnalytics = async (req, res) => {
                 
             FROM loans l
             JOIN clients c ON l.client_id = c.id
-            JOIN loan_types lt ON l.loan_type_id = lt.id
+            JOIN loan_types lt ON l.loan_type = lt.id
             ${whereClause}
         `, { replacements });
 
@@ -906,7 +780,7 @@ const getNoRepaymentAnalytics = async (req, res) => {
                     AVG(l.disbursed_amount) as avg_loan_amount
                 FROM loans l
                 JOIN clients c ON l.client_id = c.id
-                JOIN loan_types lt ON l.loan_type_id = lt.id
+                JOIN loan_types lt ON l.loan_type = lt.id
                 ${previousWhereClause}
             `, { 
                 replacements: [
@@ -1455,6 +1329,571 @@ const createBulkRecoveryActions = async (req, res) => {
         });
     }
 };
+
+
+// Add these missing functions to your existing controller
+
+// Get detailed information for specific loan with no repayment
+const getLoanNoRepaymentDetails = async (req, res) => {
+    try {
+        const { loan_id } = req.params;
+
+        // Get loan details with payment history
+        const [loanDetails] = await sequelize.query(`
+            SELECT 
+                l.*,
+                c.client_number,
+                c.first_name,
+                c.last_name,
+                c.mobile,
+                c.email,
+                c.address,
+                c.city,
+                c.status as client_status,
+                lt.name as loan_type_name,
+                lt.category as loan_type_category,
+                CONCAT(u.first_name, ' ', u.last_name) as loan_officer_name,
+                u.employee_id as loan_officer_employee_id,
+                u.mobile as loan_officer_mobile,
+                
+                -- Calculated fields
+                DATEDIFF(CURDATE(), l.disbursement_date) as days_since_disbursement,
+                DATEDIFF(CURDATE(), l.first_payment_date) as days_past_first_payment,
+                
+                -- Payment analysis
+                (SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id) as total_payments_made,
+                (SELECT SUM(amount) FROM loan_payments lp WHERE lp.loan_id = l.id) as total_amount_paid,
+                (SELECT MAX(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id) as last_payment_date,
+                (SELECT MIN(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id) as first_payment_made_date,
+                
+                -- Risk assessment
+                CASE 
+                    WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN 'LOW'
+                    WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 90 THEN 'MEDIUM'
+                    WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 180 THEN 'HIGH'
+                    ELSE 'CRITICAL'
+                END as risk_category,
+                
+                -- Financial impact
+                ROUND(
+                    (l.disbursed_amount * l.interest_rate / 100 / 12) * 
+                    DATEDIFF(CURDATE(), l.disbursement_date) / 30, 2
+                ) as estimated_interest_loss,
+                
+                -- Recovery actions count
+                (SELECT COUNT(*) 
+                 FROM loan_recovery_actions lra 
+                 WHERE lra.loan_id = l.id) as recovery_actions_count,
+                 
+                -- Last contact attempt
+                (SELECT MAX(action_date) 
+                 FROM loan_recovery_actions lra 
+                 WHERE lra.loan_id = l.id) as last_contact_date
+                
+            FROM loans l
+            JOIN clients c ON l.client_id = c.id
+            JOIN loan_types lt ON l.loan_type = lt.id
+            LEFT JOIN users u ON l.loan_officer_id = u.id
+            WHERE l.id = ?
+        `, { replacements: [loan_id] });
+
+        if (loanDetails.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Loan not found'
+            });
+        }
+
+        // Get payment history
+        const [paymentHistory] = await sequelize.query(`
+            SELECT 
+                payment_date,
+                amount,
+                principal_amount,
+                interest_amount,
+                fees_amount,
+                payment_method,
+                reference_number,
+                notes,
+                created_at
+            FROM loan_payments
+            WHERE loan_id = ?
+            ORDER BY payment_date DESC
+        `, { replacements: [loan_id] });
+
+        // Get recovery actions
+        const [recoveryActions] = await sequelize.query(`
+            SELECT 
+                lra.*,
+                CONCAT(u.first_name, ' ', u.last_name) as assigned_to_name,
+                CONCAT(creator.first_name, ' ', creator.last_name) as created_by_name
+            FROM loan_recovery_actions lra
+            LEFT JOIN users u ON lra.assigned_to = u.id
+            LEFT JOIN users creator ON lra.created_by = creator.id
+            WHERE lra.loan_id = ?
+            ORDER BY lra.action_date DESC
+        `, { replacements: [loan_id] });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                loan: loanDetails[0],
+                payment_history: paymentHistory,
+                recovery_actions: recoveryActions,
+                recommendations: generateLoanRecommendations(loanDetails[0])
+            }
+        });
+
+    } catch (error) {
+        console.error('Get loan no repayment details error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching loan details',
+            error: error.message
+        });
+    }
+};
+
+// Create immediate recovery action for no repayment loan
+const createImmediateRecoveryAction = async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                errors: errors.array()
+            });
+        }
+
+        const { loan_id } = req.params;
+        const {
+            action_type,
+            description,
+            assigned_to,
+            priority = 'medium',
+            target_date,
+            notes
+        } = req.body;
+
+        // Validate loan exists and has no repayments
+        const [loan] = await sequelize.query(`
+            SELECT l.*, c.first_name, c.last_name, c.mobile
+            FROM loans l
+            JOIN clients c ON l.client_id = c.id
+            WHERE l.id = ?
+            AND l.status IN ('disbursed', 'active')
+        `, { replacements: [loan_id] });
+
+        if (loan.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Loan not found or not in active status'
+            });
+        }
+
+        // Create recovery action
+        const [result] = await sequelize.query(`
+            INSERT INTO loan_recovery_actions (
+                loan_id, action_type, description, assigned_to, priority,
+                target_date, notes, status, created_by, action_date,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', ?, NOW(), NOW(), NOW())
+        `, {
+            replacements: [
+                loan_id,
+                action_type,
+                description,
+                assigned_to,
+                priority,
+                target_date || null,
+                notes || null,
+                req.user.userId
+            ]
+        });
+
+        console.log(`📞 Recovery action created - Loan: ${loan[0].loan_number}, Type: ${action_type}, Created by: ${req.user.userId}`);
+
+        res.status(201).json({
+            success: true,
+            message: 'Recovery action created successfully',
+            data: {
+                action_id: result.insertId,
+                loan_number: loan[0].loan_number,
+                client_name: `${loan[0].first_name} ${loan[0].last_name}`,
+                action_type,
+                priority,
+                assigned_to
+            }
+        });
+
+    } catch (error) {
+        console.error('Create immediate recovery action error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating recovery action',
+            error: error.message
+        });
+    }
+};
+
+// Flag loan as potential fraud
+const flagAsPotentialFraud = async (req, res) => {
+    try {
+        const { loan_id } = req.params;
+        const {
+            fraud_indicators = [],
+            description,
+            severity = 'medium',
+            evidence_description,
+            recommended_action,
+            notify_authorities = false,
+            internal_notes
+        } = req.body;
+
+        // Validate loan exists
+        const [loan] = await sequelize.query(`
+            SELECT l.*, c.first_name, c.last_name, c.mobile
+            FROM loans l
+            JOIN clients c ON l.client_id = c.id
+            WHERE l.id = ?
+        `, { replacements: [loan_id] });
+
+        if (loan.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Loan not found'
+            });
+        }
+
+        // Create fraud flag record
+        const [result] = await sequelize.query(`
+            INSERT INTO loan_fraud_flags (
+                loan_id, fraud_indicators, description, severity,
+                evidence_description, recommended_action, notify_authorities,
+                internal_notes, flagged_by, flagged_date, status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'active', NOW(), NOW())
+        `, {
+            replacements: [
+                loan_id,
+                JSON.stringify(fraud_indicators),
+                description,
+                severity,
+                evidence_description || null,
+                recommended_action || null,
+                notify_authorities,
+                internal_notes || null,
+                req.user.userId
+            ]
+        });
+
+        // Update loan status to flagged
+        await sequelize.query(`
+            UPDATE loans 
+            SET status = 'flagged_fraud', updated_at = NOW()
+            WHERE id = ?
+        `, { replacements: [loan_id] });
+
+        console.log(`🚨 Loan flagged as fraud - Loan: ${loan[0].loan_number}, Severity: ${severity}, Flagged by: ${req.user.userId}`);
+
+        res.status(201).json({
+            success: true,
+            message: 'Loan flagged as potential fraud successfully',
+            data: {
+                flag_id: result.insertId,
+                loan_number: loan[0].loan_number,
+                client_name: `${loan[0].first_name} ${loan[0].last_name}`,
+                severity,
+                fraud_indicators,
+                notify_authorities
+            }
+        });
+
+    } catch (error) {
+        console.error('Flag as potential fraud error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error flagging loan as fraud',
+            error: error.message
+        });
+    }
+};
+
+// Generate comprehensive no repayment report
+const generateNoRepaymentReport = async (req, res) => {
+    try {
+        const {
+            format = 'json',
+            criteria = 'no_payments_ever',
+            disbursement_start,
+            disbursement_end,
+            check_period_start,
+            check_period_end,
+            expected_payment_days = 30,
+            payment_gap_threshold = 60,
+            include_details = 'true',
+            group_by,
+            branch,
+            loan_officer_id,
+            loan_type_id
+        } = req.query;
+
+        // Build query conditions
+        let whereClause = `WHERE l.status IN ('disbursed', 'active') AND l.disbursement_date IS NOT NULL`;
+        let replacements = [];
+
+        if (disbursement_start) {
+            whereClause += ' AND l.disbursement_date >= ?';
+            replacements.push(disbursement_start);
+        }
+
+        if (disbursement_end) {
+            whereClause += ' AND l.disbursement_date <= ?';
+            replacements.push(disbursement_end);
+        }
+
+        if (branch) {
+            whereClause += ' AND l.branch = ?';
+            replacements.push(branch);
+        }
+
+        if (loan_officer_id) {
+            whereClause += ' AND l.loan_officer_id = ?';
+            replacements.push(loan_officer_id);
+        }
+
+        if (loan_type_id) {
+            whereClause += ' AND l.loan_type = ?';
+            replacements.push(loan_type_id);
+        }
+
+        // Build no repayment condition
+        const noRepaymentCondition = buildNoRepaymentCondition(
+            criteria, 
+            check_period_start, 
+            check_period_end, 
+            expected_payment_days, 
+            payment_gap_threshold
+        );
+
+        whereClause += noRepaymentCondition.condition;
+        replacements.push(...noRepaymentCondition.replacements);
+
+        // Get report data
+                // Get report data
+        const [reportData] = await sequelize.query(`
+            SELECT 
+                l.id,
+                l.loan_number,
+                l.loan_account,
+                l.disbursed_amount,
+                l.loan_balance,
+                l.disbursement_date,
+                l.maturity_date,
+                l.first_payment_date,
+                l.status,
+                l.branch,
+                
+                -- Client information
+                c.client_number,
+                c.first_name,
+                c.last_name,
+                c.mobile,
+                c.email,
+                c.address,
+                c.city,
+                
+                -- Loan type information
+                lt.name as loan_type_name,
+                lt.category as loan_type_category,
+                
+                -- Loan officer information
+                CONCAT(u.first_name, ' ', u.last_name) as loan_officer_name,
+                u.employee_id as loan_officer_employee_id,
+                
+                -- Calculated fields
+                DATEDIFF(CURDATE(), l.disbursement_date) as days_since_disbursement,
+                DATEDIFF(CURDATE(), l.first_payment_date) as days_past_first_payment,
+                
+                -- Payment analysis
+                (SELECT COUNT(*) FROM loan_payments lp WHERE lp.loan_id = l.id) as total_payments_made,
+                (SELECT SUM(amount) FROM loan_payments lp WHERE lp.loan_id = l.id) as total_amount_paid,
+                (SELECT MAX(payment_date) FROM loan_payments lp WHERE lp.loan_id = l.id) as last_payment_date,
+                
+                -- Risk assessment
+                CASE 
+                    WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN 'LOW'
+                    WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 90 THEN 'MEDIUM'
+                    WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 180 THEN 'HIGH'
+                    ELSE 'CRITICAL'
+                END as risk_category,
+                
+                -- Financial impact
+                ROUND(
+                    (l.disbursed_amount * l.interest_rate / 100 / 12) * 
+                    DATEDIFF(CURDATE(), l.disbursement_date) / 30, 2
+                ) as estimated_interest_loss,
+                
+                -- Recovery actions count
+                (SELECT COUNT(*) FROM loan_recovery_actions lra WHERE lra.loan_id = l.id) as recovery_actions_count
+                
+            FROM loans l
+            JOIN clients c ON l.client_id = c.id
+            JOIN loan_types lt ON l.loan_type = lt.id
+            LEFT JOIN users u ON l.loan_officer_id = u.id
+            ${whereClause}
+            ORDER BY l.disbursement_date DESC
+        `, { replacements });
+
+        // Generate summary statistics
+        const [summary] = await sequelize.query(`
+            SELECT 
+                COUNT(*) as total_loans,
+                SUM(l.disbursed_amount) as total_amount_at_risk,
+                AVG(l.disbursed_amount) as avg_loan_amount,
+                SUM(ROUND(
+                    (l.disbursed_amount * l.interest_rate / 100 / 12) * 
+                    DATEDIFF(CURDATE(), l.disbursement_date) / 30, 2
+                )) as total_estimated_interest_loss,
+                AVG(DATEDIFF(CURDATE(), l.disbursement_date)) as avg_days_since_disbursement,
+                
+                -- Risk distribution
+                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) <= 30 THEN 1 ELSE 0 END) as low_risk_count,
+                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 31 AND 90 THEN 1 ELSE 0 END) as medium_risk_count,
+                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) BETWEEN 91 AND 180 THEN 1 ELSE 0 END) as high_risk_count,
+                SUM(CASE WHEN DATEDIFF(CURDATE(), l.disbursement_date) > 180 THEN 1 ELSE 0 END) as critical_risk_count
+                
+            FROM loans l
+            JOIN clients c ON l.client_id = c.id
+            ${whereClause}
+        `, { replacements });
+
+        const reportResult = {
+            report_info: {
+                generated_at: new Date().toISOString(),
+                criteria,
+                disbursement_start,
+                disbursement_end,
+                check_period_start,
+                check_period_end,
+                total_records: reportData.length,
+                format
+            },
+            summary: summary[0],
+            data: include_details === 'true' ? reportData : []
+        };
+
+        // Handle different export formats
+        if (format === 'csv') {
+            const csv = convertToCSV(reportData);
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=no-repayment-loans.csv');
+            return res.send(csv);
+        } else if (format === 'excel') {
+            // For Excel format, you'd need to implement Excel generation
+            // For now, return CSV format
+            const csv = convertToCSV(reportData);
+            res.setHeader('Content-Type', 'application/vnd.ms-excel');
+            res.setHeader('Content-Disposition', 'attachment; filename=no-repayment-loans.xls');
+            return res.send(csv);
+        }
+
+        res.status(200).json({
+            success: true,
+            data: reportResult
+        });
+
+    } catch (error) {
+        console.error('Generate no repayment report error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error generating report',
+            error: error.message
+        });
+    }
+};
+
+// Helper function to convert data to CSV
+const convertToCSV = (data) => {
+    if (data.length === 0) return '';
+
+    const headers = Object.keys(data[0]);
+    const csvHeaders = headers.join(',');
+    
+    const csvRows = data.map(row => {
+        return headers.map(header => {
+            const value = row[header];
+            // Escape commas and quotes in CSV
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+                return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value || '';
+        }).join(',');
+    });
+
+    return [csvHeaders, ...csvRows].join('\n');
+};
+
+// Helper function to generate loan recommendations
+const generateLoanRecommendations = (loan) => {
+    const recommendations = [];
+    const daysSinceDisbursement = loan.days_since_disbursement;
+    const riskCategory = loan.risk_category;
+
+    if (daysSinceDisbursement > 180) {
+        recommendations.push({
+            priority: 'URGENT',
+            category: 'Legal Action',
+            action: 'Consider legal proceedings or write-off',
+            description: 'Loan is significantly overdue with no payments'
+        });
+    } else if (daysSinceDisbursement > 90) {
+        recommendations.push({
+            priority: 'HIGH',
+            category: 'Recovery Action',
+            action: 'Initiate formal recovery process',
+            description: 'Immediate intervention required'
+        });
+    } else if (daysSinceDisbursement > 30) {
+        recommendations.push({
+            priority: 'MEDIUM',
+            category: 'Follow-up',
+            action: 'Contact borrower and establish payment plan',
+            description: 'Early intervention to prevent further deterioration'
+        });
+    }
+
+    if (loan.recovery_actions_count === 0) {
+        recommendations.push({
+            priority: 'HIGH',
+            category: 'Recovery Action',
+            action: 'Create first recovery action',
+            description: 'No recovery actions have been taken yet'
+        });
+    }
+
+    if (loan.mobile) {
+        recommendations.push({
+            priority: 'MEDIUM',
+            category: 'Communication',
+            action: 'Send SMS reminder',
+            description: 'Mobile number available for contact'
+        });
+    }
+
+    if (loan.estimated_interest_loss > 50000) {
+        recommendations.push({
+            priority: 'HIGH',
+            category: 'Financial Impact',
+            action: 'Prioritize for immediate action',
+            description: 'High financial impact on portfolio'
+        });
+    }
+
+    return recommendations;
+};
+
 
 // Export all functions
 module.exports = {

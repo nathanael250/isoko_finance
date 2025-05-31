@@ -142,6 +142,17 @@ export const dueLoansAPI = {
     }
 };
 
+
+export const dashboardAPI = {
+    getStats: () => api.get('/dashboard/stats'),
+    getActivities: (limit = 10) => api.get(`/dashboard/activities?limit=${limit}`),
+    getPerformance: () => api.get('/dashboard/performance'),
+    getChartData: (chartType) => api.get(`/dashboard/charts/${chartType}`),
+};
+
+
+
+
 // ADD THIS: Missed Repayments API
 export const missedRepaymentsAPI = {
     getMissedRepayments: (params) => {
@@ -212,6 +223,119 @@ export const repaymentsAPI = {
     getLoanRepayments: (loanId) => api.get(`/repayments/loan/${loanId}`),
 };
 
+
+// Add this to your existing API services
+export const noRepaymentAPI = {
+    getLoansWithNoRepayment: (params) => {
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/no-repayment?${queryString}`);
+    },
+    
+    getLoanDetails: (loanId) => {
+        return api.get(`/no-repayment/${loanId}`);
+    },
+    
+    getAnalytics: (params) => {
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/no-repayment/analytics?${queryString}`);
+    },
+    
+    createRecoveryAction: (loanId, data) => {
+        return api.post(`/no-repayment/${loanId}/recovery-action`, data);
+    },
+    
+    flagAsFraud: (loanId, data) => {
+        return api.post(`/no-repayment/${loanId}/flag-fraud`, data);
+    },
+    
+    generateReport: (params) => {
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/no-repayment/report?${queryString}`, {
+            responseType: 'blob'
+        });
+    }
+};
+
+
+
+export const pastMaturityAPI = {
+    // Get dashboard summary
+    getDashboardSummary: () => api.get('/past-maturity/dashboard'),
+    
+    // Get loans by days past maturity
+    getLoansByDays: (params) => {
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/past-maturity/loans?${queryString}`);
+    },
+    
+    // Get branch summary
+    getBranchSummary: () => api.get('/past-maturity/branch-summary'),
+    
+    // Get officer summary
+    getOfficerSummary: (params) => {
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/past-maturity/officer-summary?${queryString}`);
+    },
+    
+    // Get common filters
+    getCommonFilters: () => api.get('/past-maturity/common-filters'),
+    
+    // Get day breakdown
+    getDayBreakdown: (params) => {
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/past-maturity/day-breakdown?${queryString}`);
+    },
+    
+    // Generate report
+    generateReport: (params) => {
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/past-maturity/report?${queryString}`, {
+            responseType: params.format === 'csv' ? 'blob' : 'json'
+        });
+    }
+};
 // Loan Types API
 export const loanTypesAPI = {
     getLoanTypes: (params) => api.get('/loan-types', { params }),
@@ -219,6 +343,9 @@ export const loanTypesAPI = {
     getLoanType: (id) => api.get(`/loan-types/${id}`),
     updateLoanType: (id, data) => api.put(`/loan-types/${id}`, data),
     deleteLoanType: (id) => api.delete(`/loan-types/${id}`),
+    getActivities: (limit = 10) => api.get(`/dashboard/activities?limit=${limit}`),
+    getPerformance: () => api.get('/dashboard/performance'),
+    getCharts: (type, period = 'monthly') => api.get(`/dashboard/charts/${type}?period=${period}`)
 };
 
 export default api;

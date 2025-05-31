@@ -27,6 +27,7 @@ const principalOutstandingRoutes = require('./routes/principalOutstanding');
 const loanCalculatorRouter = require('./routes/loanCalculator');
 const guarantorRoutes = require('./routes/guarantors');
 const dashboardRoutes = require('./routes/dashboard');
+const noRepaymentRoutes = require('./routes/noRepayment');
 
 
 // Connect to database
@@ -96,6 +97,7 @@ app.use('/api/principal-outstanding', principalOutstandingRoutes);
 app.use('/api/loan-calculator', loanCalculatorRouter);
 app.use('/api/guarantors', guarantorRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/no-repayment', noRepaymentRoutes);
 
 
 // 404 handler for undefined routes

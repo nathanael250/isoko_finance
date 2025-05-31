@@ -1,4 +1,4 @@
-const { body } = require('express-validator');
+const { body, query } = require('express-validator'); // Add 'query' import
 
 const createRecoveryActionValidation = [
     body('action_type')
@@ -54,7 +54,7 @@ const dateRangeValidation = [
                     throw new Error('check_period_end must be after check_period_start');
                 }
                 // Check if date range is not too large (max 2 years)
-                const daysDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+                const daysDiff = (endDate - startDate) / (1000 * 60 * 60 * 1000);
                 if (daysDiff > 730) {
                     throw new Error('Date range cannot exceed 2 years');
                 }
@@ -144,8 +144,6 @@ const dateRangeValidation = [
         return true;
     })
 ];
-
-
 
 const bulkRecoveryActionValidation = [
     body('loan_ids')
@@ -316,14 +314,11 @@ const fraudFlagValidation = [
         .withMessage('internal_notes must not exceed 2000 characters')
 ];
 
+// Single module.exports with all validations
 module.exports = {
-    dateRangeValidation,
     createRecoveryActionValidation,
+    dateRangeValidation,
     bulkRecoveryActionValidation,
     reportGenerationValidation,
     fraudFlagValidation
-};
-
-module.exports = {
-    createRecoveryActionValidation
 };

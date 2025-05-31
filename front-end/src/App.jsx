@@ -29,6 +29,8 @@ const LoanDetails = React.lazy(() => import('./pages/admin/LoanDetails'));
 const DueLoans = React.lazy(() => import('./pages/admin/DueLoans'));
 const MissedRepayments = React.lazy(() => import('./pages/admin/MissedRepayments'));
 const LoansInArrears = React.lazy(() => import('./pages/admin/LoansInArrears'));
+const NoRepaymentLoans = React.lazy(() => import('./pages/admin/NoRepaymentLoans'));
+const PastMaturityDashboard = React.lazy(() => import('./pages/admin/PastMaturityDashboard'));
 
 // Supervisor Pages
 const TeamOverview = React.lazy(() => import('./pages/supervisor/TeamOverview'));
@@ -162,6 +164,26 @@ function App() {
                       <ProtectedRoute allowedRoles={['admin']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <LoansInArrears />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="admin/no-repayment-loans"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <NoRepaymentLoans />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="admin/past-maturity"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <PastMaturityDashboard />
                         </React.Suspense>
                       </ProtectedRoute>
                     }

@@ -148,14 +148,14 @@ const DashboardLayout = () => {
                                                     </li>
                                                     <li>
                                                         <Link
-                                                            to="/loans/no-repayments"
+                                                            to="admin/no-repayment-loans"
                                                             className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
                                                             No Repayments
                                                         </Link>
                                                     </li>
                                                     <li>
                                                         <Link
-                                                            to="/loans/past-maturity"
+                                                            to="admin/past-maturity"
                                                             className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
                                                             Past Maturity Date
                                                         </Link>

@@ -14,7 +14,8 @@ router.get('/test', (req, res) => {
 // @route   GET /api/past-maturity/loans
 // @desc    Get loans past maturity by specific days
 // @access  Private
-// @params  ?days=30&operator=>&limit=50&offset=0&sortBy=recovery_priority_score&sortOrder=DESC
+// @params  ?days=30&operator=>&limit=50&of8
+// fset=0&sortBy=recovery_priority_score&sortOrder=DESC
 router.get('/loans', protect, PastMaturityController.getLoansByDays);
 
 // @route   GET /api/past-maturity/stats
