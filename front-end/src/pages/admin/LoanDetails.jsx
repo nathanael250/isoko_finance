@@ -1,0 +1,1275 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+    ArrowLeft,
+    Calendar,
+    DollarSign,
+    FileText,
+    CreditCard,
+    User,
+    Phone,
+    Mail,
+    MapPin,
+    Building,
+    Clock,
+    CheckCircle,
+    XCircle,
+    AlertCircle,
+    Download,
+    Upload,
+    Eye
+} from 'lucide-react';
+import { loansAPI } from '../../services/api';
+
+const LoanDetails = () => {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const [loan, setLoan] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [activeTab, setActiveTab] = useState('schedule');
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedLoan, setEditedLoan] = useState({});
+    const [client, setClient] = useState(null);
+    const handleEditToggle = () => {
+        if (isEditing) {
+            setEditedLoan({});
+        } else {
+            setEditedLoan({ ...loan });
+        }
+        setIsEditing(!isEditing);
+    };
+    const handleInputChange = (field, value) => {
+        setEditedLoan(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+
+    const handleSave = async () => {
+        try {
+            // Add your save logic here
+            console.log('Saving loan data:', editedLoan);
+            // await loansAPI.update(id, editedLoan);
+            setLoan(editedLoan);
+            setIsEditing(false);
+        } catch (error) {
+            console.error('Error saving loan:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchLoanDetails();
+    }, [id]);
+
+    const fetchLoanDetails = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            console.log('Fetching loan with ID:', id);
+
+            const response = await loansAPI.getLoan(id);
+            console.log('API Response:', response.data);
+
+            if (response.data.success) {
+                const loanData = response.data.data.loan; // Note the .loan here
+                console.log('Loan data received:', loanData);
+
+                setLoan(loanData);
+
+                // Set client data from the same response
+                const clientData = {
+                    id: loanData.client_id,
+                    first_name: loanData.client_first_name,
+                    last_name: loanData.client_last_name,
+                    client_number: loanData.client_number,
+                    gender: loanData.client_gender,
+                    mobile: loanData.client_mobile,
+                    email: loanData.client_email,
+                    address: loanData.client_address,
+                    city: loanData.client_city,
+                    province_state: loanData.client_state
+                };
+                setClient(clientData);
+
+            } else {
+                setError(response.data.message || 'Failed to fetch loan details');
+            }
+        } catch (err) {
+            console.error('Error fetching loan:', err);
+            if (err.response?.status === 404) {
+                setError('Loan not found');
+            } else if (err.response?.data?.message) {
+                setError(err.response.data.message);
+            } else {
+                setError('Failed to load loan details. Please try again.');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const formatCurrency = (amount) => {
+        if (!amount || isNaN(amount)) return 'RWF 0.00';
+        return `RWF ${parseFloat(amount).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'N/A';
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        } catch (error) {
+            return 'N/A';
+        }
+    };
+
+
+    const getStatusColor = (status) => {
+        const colors = {
+            'pending': 'bg-yellow-100 text-yellow-800',
+            'under_review': 'bg-blue-100 text-blue-800',
+            'approved': 'bg-green-100 text-green-800',
+            'disbursed': 'bg-purple-100 text-purple-800',
+            'active': 'bg-green-100 text-green-800',
+            'completed': 'bg-gray-100 text-gray-800',
+            'defaulted': 'bg-red-100 text-red-800',
+            'rejected': 'bg-red-100 text-red-800',
+            'written_off': 'bg-red-100 text-red-800'
+        };
+        return colors[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const tabs = [
+        { id: 'schedule', label: 'Repayment Schedule', icon: Calendar },
+        { id: 'repayments', label: 'Payment History', icon: CreditCard },
+        { id: 'documents', label: 'Documents', icon: FileText }
+    ];
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading loan details...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+                        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-red-900 mb-2">Error Loading Loan</h3>
+                        <p className="text-red-700 mb-4">{error}</p>
+                        <div className="flex space-x-3 justify-center">
+                            <button
+                                onClick={fetchLoanDetails}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                            >
+                                Try Again
+                            </button>
+                            <button
+                                onClick={() => navigate('/dashboard/admin/loans')}
+                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                            >
+                                Back to Loans
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+
+    if (!loan) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Loan Data</h3>
+                    <p className="text-gray-600 mb-4">Loan data could not be loaded.</p>
+                    <button
+                        onClick={() => navigate('/dashboard/admin/loans')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Back to Loans
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <div className="bg-white border-b border-gray-200">
+                <div className="px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <button
+                                onClick={() => navigate('/dashboard/admin/loans')}
+                                className="flex items-center text-gray-600 hover:text-gray-900"
+                            >
+                                <ArrowLeft className="w-5 h-5 mr-2" />
+                                Back to Loans
+                            </button>
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-900">
+                                    Loan Details - {loan.loan_number}
+                                </h1>
+                                <p className="text-gray-600">Account: {loan.loan_account}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                            <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(loan.status)}`}>
+                                {loan.status?.replace('_', ' ').toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+                {/* Client Information Section */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <User className="w-5 h-5 mr-2" />
+                            Client Information
+                        </h3>
+                    </div>
+                    <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div>
+                                <label className="text-sm font-medium text-gray-500">Client Name</label>
+                                <p className="mt-1 text-sm text-gray-900">
+                                    {loan?.client_first_name && loan?.client_last_name
+                                        ? `${loan.client_first_name} ${loan.client_last_name}`
+                                        : 'N/A'}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-500">Client Number</label>
+                                <p className="mt-1 text-sm text-gray-900">{loan?.client_number || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-500">Phone Number</label>
+                                <p className="mt-1 text-sm text-gray-900">{loan?.client_mobile || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-500">Email</label>
+                                <p className="mt-1 text-sm text-gray-900">{loan?.client_email || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-500">Address</label>
+                                <p className="mt-1 text-sm text-gray-900">
+                                    {loan?.client_address
+                                        ? `${loan.client_address}${loan.client_city ? ', ' + loan.client_city : ''}${loan.client_state ? ', ' + loan.client_state : ''}`
+                                        : 'N/A'}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-500">Loan Officer</label>
+                                <p className="mt-1 text-sm text-gray-900">
+                                    {loan?.officer_first_name && loan?.officer_last_name
+                                        ? `${loan.officer_first_name} ${loan.officer_last_name}`
+                                        : 'Not assigned'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Loan Details Section - Single Row Table */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <DollarSign className="w-5 h-5 mr-2" />
+                            Loan Summary
+                        </h3>
+                        <div className="flex space-x-2">
+                            {isEditing ? (
+                                <>
+                                    <button
+                                        onClick={handleSave}
+                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                                    >
+                                        Save Changes
+                                    </button>
+                                    <button
+                                        onClick={handleEditToggle}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={handleEditToggle}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                                >
+                                    Edit
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    <div className="p-6">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loan#</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Released</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Maturity</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Principal</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interest Rate</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interest</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fees</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Penalty</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white">
+                                    <tr className="hover:bg-gray-50">
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            {loan?.loan_number || 'N/A'}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isEditing ? (
+                                                <input
+                                                    type="date"
+                                                    value={editedLoan.disbursement_date ? new Date(editedLoan.disbursement_date).toISOString().split('T')[0] : ''}
+                                                    onChange={(e) => handleInputChange('disbursement_date', e.target.value)}
+                                                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                />
+                                            ) : (
+                                                loan?.application_date ? formatDate(loan.application_date) : 'Not Released'
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isEditing ? (
+                                                <input
+                                                    type="date"
+                                                    value={editedLoan.maturity_date ? new Date(editedLoan.maturity_date).toISOString().split('T')[0] : ''}
+                                                    onChange={(e) => handleInputChange('maturity_date', e.target.value)}
+                                                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                />
+                                            ) : (
+                                                loan?.maturity_date ? formatDate(loan.maturity_date) : 'N/A'
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isEditing ? (
+                                                <input
+                                                    type="number"
+                                                    value={editedLoan.approved_amount || editedLoan.applied_amount || ''}
+                                                    onChange={(e) => handleInputChange('approved_amount', e.target.value)}
+                                                    className="w-24 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                />
+                                            ) : (
+                                                formatCurrency(loan?.approved_amount || loan?.applied_amount || 0)
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isEditing ? (
+                                                <div className="flex items-center space-x-1">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={editedLoan.interest_rate || ''}
+                                                        onChange={(e) => handleInputChange('interest_rate', e.target.value)}
+                                                        className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-xs text-gray-500">%</span>
+                                                </div>
+                                            ) : (
+                                                loan?.interest_rate ? `${parseFloat(loan.interest_rate).toFixed(2)}%` : 'N/A'
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {formatCurrency(loan?.interest_balance || 0)}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {formatCurrency(loan?.total_fees_including_vat || loan?.total_fees_before_vat || 0)}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {formatCurrency((loan?.arrears_principal || 0) + (loan?.arrears_interest || 0))}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {formatCurrency(
+                                                (loan?.approved_amount || loan?.applied_amount || 0) +
+                                                (loan?.interest_balance || 0) +
+                                                (loan?.total_fees_including_vat || loan?.total_fees_before_vat || 0)
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {formatCurrency(
+                                                (loan?.approved_amount || loan?.applied_amount || 0) -
+                                                (loan?.principal_balance || 0)
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {formatCurrency(loan?.loan_balance || loan?.principal_balance || (loan?.approved_amount || loan?.applied_amount || 0))}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            {isEditing ? (
+                                                <select
+                                                    value={editedLoan.status || loan?.status || ''}
+                                                    onChange={(e) => handleInputChange('status', e.target.value)}
+                                                    className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                >
+                                                    <option value="pending">Pending</option>
+                                                    <option value="under_review">Under Review</option>
+                                                    <option value="approved">Approved</option>
+                                                    <option value="disbursed">Disbursed</option>
+                                                    <option value="active">Active</option>
+                                                    <option value="completed">Completed</option>
+                                                    <option value="defaulted">Defaulted</option>
+                                                    <option value="rejected">Rejected</option>
+                                                </select>
+                                            ) : (
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(loan?.status)}`}>
+                                                    {loan?.status ? loan.status.replace('_', ' ').toUpperCase() : 'N/A'}
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                </tbody>
+
+
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+
+                {/* Balance Information */}
+                {(loan.status === 'active' || loan.status === 'disbursed' || loan.status === 'completed') && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div className="px-6 py-4 border-b border-gray-200">
+                            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                                <CreditCard className="w-5 h-5 mr-2" />
+                                Current Balance
+                            </h3>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                <div className="bg-blue-50 rounded-lg p-4">
+                                    <label className="text-sm font-medium text-blue-900">Outstanding Balance</label>
+                                    <p className="text-2xl font-bold text-blue-600">
+                                        {formatCurrency(loan.loan_balance)}
+                                    </p>
+                                </div>
+                                <div className="bg-green-50 rounded-lg p-4">
+                                    <label className="text-sm font-medium text-green-900">Principal Balance</label>
+                                    <p className="text-2xl font-bold text-green-600">
+                                        {formatCurrency(loan.principal_balance)}
+                                    </p>
+                                </div>
+                                <div className="bg-yellow-50 rounded-lg p-4">
+                                    <label className="text-sm font-medium text-yellow-900">Interest Balance</label>
+                                    <p className="text-2xl font-bold text-yellow-600">
+                                        {formatCurrency(loan.interest_balance)}
+                                    </p>
+                                </div>
+                                <div className="bg-purple-50 rounded-lg p-4">
+                                    <label className="text-sm font-medium text-purple-900">Installments Paid</label>
+                                    <p className="text-2xl font-bold text-purple-600">
+                                        {loan.installments_paid || 0} / {loan.total_installments || 0}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Arrears Information */}
+                            {(loan.arrears_principal > 0 || loan.arrears_interest > 0 || loan.days_in_arrears > 0) && (
+                                <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                                    <h4 className="text-sm font-medium text-red-900 mb-3 flex items-center">
+                                        <AlertCircle className="w-4 h-4 mr-2" />
+                                        Arrears Information
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="text-xs font-medium text-red-700">Principal Arrears</label>
+                                            <p className="text-lg font-semibold text-red-600">
+                                                {formatCurrency(loan.arrears_principal)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-red-700">Interest Arrears</label>
+                                            <p className="text-lg font-semibold text-red-600">
+                                                {formatCurrency(loan.arrears_interest)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-red-700">Days in Arrears</label>
+                                            <p className="text-lg font-semibold text-red-600">
+                                                {loan.days_in_arrears || 0} days
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Tabs Section */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    {/* Tab Navigation */}
+                    <div className="border-b border-gray-200">
+                        <nav className="flex space-x-8 px-6" aria-label="Tabs">
+                            {tabs.map((tab) => {
+                                const Icon = tab.icon;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`${activeTab === tab.id
+                                            ? 'border-blue-500 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+                                    >
+                                        <Icon className="w-4 h-4 mr-2" />
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="p-6">
+                        {activeTab === 'schedule' && <ScheduleTab loanId={id} />}
+                        {activeTab === 'repayments' && <RepaymentsTab loanId={id} />}
+                        {activeTab === 'documents' && <DocumentsTab loanId={id} />}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Schedule Tab Component (keep your existing implementation)
+const ScheduleTab = ({ loanId }) => {
+    const [schedule, setSchedule] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [hasSchedule, setHasSchedule] = useState(false);
+
+    useEffect(() => {
+        fetchSchedule();
+    }, [loanId]);
+
+    const fetchSchedule = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await loansAPI.getSchedule(loanId);
+
+            if (response.data.success) {
+                const scheduleData = response.data.data?.schedule || [];
+                setSchedule(Array.isArray(scheduleData) ? scheduleData : []);
+                setHasSchedule(true);
+                setError(null);
+            } else {
+                setSchedule([]);
+                setHasSchedule(false);
+                setError(null);
+            }
+        } catch (err) {
+            console.error('Error fetching schedule:', err);
+
+            if (err.response?.status === 404) {
+                setError('Loan not found');
+            } else if (err.response?.data?.message) {
+                setError(err.response.data.message);
+            } else {
+                setError('Failed to load schedule. Please try again.');
+            }
+            setSchedule([]);
+            setHasSchedule(false);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const generateSchedule = async () => {
+        try {
+            setLoading(true);
+            await fetchSchedule();
+        } catch (err) {
+            console.error('Error generating schedule:', err);
+            setError('Failed to generate schedule');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const formatCurrency = (amount) => {
+        if (!amount || isNaN(amount) || amount === null || amount === undefined) {
+            return 'RWF 0.00';
+        }
+        const numAmount = parseFloat(amount);
+        return `RWF ${numAmount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+    };
+
+
+    const formatDate = (date) => {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+
+    const getInstallmentStatusColor = (status) => {
+        const colors = {
+            'paid': 'bg-green-100 text-green-800',
+            'partial': 'bg-yellow-100 text-yellow-800',
+            'overdue': 'bg-red-100 text-red-800',
+            'pending': 'bg-gray-100 text-gray-800',
+            'upcoming': 'bg-blue-100 text-blue-800'
+        };
+        return colors[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    if (loading) {
+        return (
+            <div className="text-center py-8">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading repayment schedule...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">Repayment Schedule</h3>
+                <div className="flex space-x-3">
+                    <button
+                        onClick={fetchSchedule}
+                        className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                        <Download className="w-4 h-4 mr-2" />
+                        Refresh
+                    </button>
+                    {!hasSchedule && (
+                        <button
+                            onClick={generateSchedule}
+                            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Generate Schedule
+                        </button>
+                    )}
+                    {hasSchedule && (
+                        <button className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                            <Download className="w-4 h-4 mr-2" />
+                            Export Schedule
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex">
+                        <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+                        <div>
+                            <p className="text-red-700">{error}</p>
+                            <button
+                                onClick={fetchSchedule}
+                                className="text-red-800 underline text-sm mt-1"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {!hasSchedule && !error ? (
+                <div className="text-center py-12">
+                    <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">No Repayment Schedule</h4>
+                    <p className="text-gray-600 mb-4">
+                        This loan doesn't have a repayment schedule yet.
+                    </p>
+                    <button
+                        onClick={generateSchedule}
+                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Generate Schedule
+                    </button>
+                </div>
+            ) : hasSchedule && schedule.length > 0 ? (
+                <>
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-blue-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-blue-900">Total Installments</h4>
+                            <p className="text-2xl font-bold text-blue-600">
+                                {schedule.length}
+                            </p>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-green-900">Paid Installments</h4>
+                            <p className="text-2xl font-bold text-green-600">
+                                {schedule.filter(s => s.status === 'paid').length}
+                            </p>
+                        </div>
+                        <div className="bg-yellow-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-yellow-900">Pending Installments</h4>
+                            <p className="text-2xl font-bold text-yellow-600">
+                                {schedule.filter(s => s.status === 'pending').length}
+                            </p>
+                        </div>
+                        <div className="bg-purple-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-purple-900">Total Amount</h4>
+                            <p className="text-2xl font-bold text-purple-600">
+                                {formatCurrency(schedule.reduce((sum, s) => sum + parseFloat(s.total_due || 0), 0))}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Schedule Table */}
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            #
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Due Date
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Principal
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Interest
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Fees
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Total Due
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Total Paid
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Balance
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Status
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {schedule.map((installment, index) => (
+                                        <tr key={installment.id || index} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {installment.installment_number || index + 1}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatDate(installment.due_date)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatCurrency(installment.principal_due)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatCurrency(installment.interest_due)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatCurrency(installment.fees_due)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {formatCurrency(installment.total_due)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <div className="space-y-1">
+                                                    <div>{formatCurrency(installment.total_paid)}</div>
+                                                    {installment.payment_date && (
+                                                        <div className="text-xs text-gray-500">
+                                                            Paid: {formatDate(installment.payment_date)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatCurrency(installment.balance_after)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInstallmentStatusColor(installment.status)}`}>
+                                                    {installment.status || 'pending'}
+                                                </span>
+                                                {installment.days_overdue > 0 && (
+                                                    <div className="text-xs text-red-600 mt-1">
+                                                        {installment.days_overdue} days overdue
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            ) : null}
+        </div>
+    );
+};
+
+// Repayments Tab Component
+const RepaymentsTab = ({ loanId }) => {
+    const [repayments, setRepayments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetchRepayments();
+    }, [loanId]);
+
+    const fetchRepayments = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await loansAPI.getRepayments(loanId);
+            if (response.data.success) {
+                setRepayments(response.data.data || []);
+            } else {
+                setRepayments([]);
+            }
+        } catch (err) {
+            console.error('Error fetching repayments:', err);
+            setError('Failed to load repayment history');
+            setRepayments([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const formatCurrency = (amount) => {
+        if (!amount || isNaN(amount)) return 'RWF 0.00';
+        return `RWF ${parseFloat(amount).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+    };
+
+    const formatDate = (date) => {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+
+    const getPaymentMethodColor = (method) => {
+        const colors = {
+            'cash': 'bg-green-100 text-green-800',
+            'bank_transfer': 'bg-blue-100 text-blue-800',
+            'mobile_money': 'bg-purple-100 text-purple-800',
+            'check': 'bg-yellow-100 text-yellow-800'
+        };
+        return colors[method] || 'bg-gray-100 text-gray-800';
+    };
+
+    if (loading) {
+        return (
+            <div className="text-center py-8">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading payment history...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">Payment History</h3>
+                <div className="flex space-x-3">
+                    <button
+                        onClick={fetchRepayments}
+                        className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                        <Download className="w-4 h-4 mr-2" />
+                        Refresh
+                    </button>
+                    <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Record Payment
+                    </button>
+                </div>
+            </div>
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex">
+                        <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+                        <div>
+                            <p className="text-red-700">{error}</p>
+                            <button
+                                onClick={fetchRepayments}
+                                className="text-red-800 underline text-sm mt-1"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {repayments.length === 0 && !error ? (
+                <div className="text-center py-12">
+                    <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">No Payments Found</h4>
+                    <p className="text-gray-600 mb-4">
+                        No payments have been recorded for this loan yet.
+                    </p>
+                    <button className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Record First Payment
+                    </button>
+                </div>
+            ) : (
+                <>
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="bg-green-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-green-900">Total Payments</h4>
+                            <p className="text-2xl font-bold text-green-600">
+                                {repayments.length}
+                            </p>
+                        </div>
+                        <div className="bg-blue-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-blue-900">Total Amount Paid</h4>
+                            <p className="text-2xl font-bold text-blue-600">
+                                {formatCurrency(repayments.reduce((sum, r) => sum + parseFloat(r.amount_paid || 0), 0))}
+                            </p>
+                        </div>
+                        <div className="bg-purple-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-purple-900">Last Payment</h4>
+                            <p className="text-2xl font-bold text-purple-600">
+                                {repayments.length > 0 ? formatDate(repayments[0].payment_date) : 'N/A'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Payments Table */}
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Payment Date
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Amount Paid
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Principal
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Interest
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Fees
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Payment Method
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Received By
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {repayments.map((payment, index) => (
+                                        <tr key={payment.id || index} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatDate(payment.payment_date)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {formatCurrency(payment.amount_paid)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatCurrency(payment.principal_paid)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatCurrency(payment.interest_paid)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {formatCurrency(payment.fees_paid)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentMethodColor(payment.payment_method)}`}>
+                                                    {payment.payment_method?.replace('_', ' ') || 'N/A'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {payment.received_by_name || 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <button className="text-blue-600 hover:text-blue-900">
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+// Documents Tab Component
+const DocumentsTab = ({ loanId }) => {
+    const [documents, setDocuments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetchDocuments();
+    }, [loanId]);
+
+    const fetchDocuments = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await loansAPI.getDocuments(loanId);
+            if (response.data.success) {
+                setDocuments(response.data.data || []);
+            } else {
+                setDocuments([]);
+            }
+        } catch (err) {
+            console.error('Error fetching documents:', err);
+            setError('Failed to load documents');
+            setDocuments([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const formatDate = (date) => {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+
+    const getDocumentTypeColor = (type) => {
+        const colors = {
+            'id_card': 'bg-blue-100 text-blue-800',
+            'passport': 'bg-green-100 text-green-800',
+            'utility_bill': 'bg-yellow-100 text-yellow-800',
+            'bank_statement': 'bg-purple-100 text-purple-800',
+            'business_license': 'bg-indigo-100 text-indigo-800',
+            'collateral_document': 'bg-red-100 text-red-800',
+            'other': 'bg-gray-100 text-gray-800'
+        };
+        return colors[type] || 'bg-gray-100 text-gray-800';
+    };
+
+    const formatFileSize = (bytes) => {
+        if (!bytes) return 'N/A';
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        if (bytes === 0) return '0 Bytes';
+        const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+        return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+    };
+
+    if (loading) {
+        return (
+            <div className="text-center py-8">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading documents...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">Loan Documents</h3>
+                <div className="flex space-x-3">
+                    <button
+                        onClick={fetchDocuments}
+                        className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                        <Download className="w-4 h-4 mr-2" />
+                        Refresh
+                    </button>
+                    <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload Document
+                    </button>
+                </div>
+            </div>
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex">
+                        <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+                        <div>
+                            <p className="text-red-700">{error}</p>
+                            <button
+                                onClick={fetchDocuments}
+                                className="text-red-800 underline text-sm mt-1"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {documents.length === 0 && !error ? (
+                <div className="text-center py-12">
+                    <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">No Documents Found</h4>
+                    <p className="text-gray-600 mb-4">
+                        No documents have been uploaded for this loan yet.
+                    </p>
+                    <button className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload First Document
+                    </button>
+                </div>
+            ) : (
+                <>
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="bg-blue-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-blue-900">Total Documents</h4>
+                            <p className="text-2xl font-bold text-blue-600">
+                                {documents.length}
+                            </p>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-green-900">Verified Documents</h4>
+                            <p className="text-2xl font-bold text-green-600">
+                                {documents.filter(d => d.is_verified).length}
+                            </p>
+                        </div>
+                        <div className="bg-yellow-50 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-yellow-900">Pending Verification</h4>
+                            <p className="text-2xl font-bold text-yellow-600">
+                                {documents.filter(d => !d.is_verified).length}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Documents Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {documents.map((document, index) => (
+                            <div key={document.id || index} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center">
+                                        <FileText className="w-8 h-8 text-gray-400 mr-3" />
+                                        <div>
+                                            <h4 className="text-sm font-medium text-gray-900 truncate">
+                                                {document.file_name || 'Untitled Document'}
+                                            </h4>
+                                            <p className="text-xs text-gray-500">
+                                                {formatFileSize(document.file_size)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {document.is_verified ? (
+                                        <CheckCircle className="w-5 h-5 text-green-500" />
+                                    ) : (
+                                        <Clock className="w-5 h-5 text-yellow-500" />
+                                    )}
+                                </div>
+
+                                <div className="space-y-2 mb-4">
+                                    <div>
+                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getDocumentTypeColor(document.document_type)}`}>
+                                            {document.document_type?.replace('_', ' ') || 'Unknown'}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-gray-600">
+                                        {document.description || 'No description provided'}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        Uploaded: {formatDate(document.uploaded_at)}
+                                    </p>
+                                    {document.uploaded_by_name && (
+                                        <p className="text-xs text-gray-500">
+                                            By: {document.uploaded_by_name}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="flex space-x-2">
+                                    <button className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                        <Eye className="w-4 h-4 mr-1" />
+                                        View
+                                    </button>
+                                    <button className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                        <Download className="w-4 h-4 mr-1" />
+                                        Download
+                                    </button>
+                                </div>
+
+                                {!document.is_verified && (
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                        <div className="flex space-x-2">
+                                            <button className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">
+                                                Verify
+                                            </button>
+                                            <button className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700">
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+export default LoanDetails;
