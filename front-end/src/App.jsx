@@ -31,6 +31,7 @@ const MissedRepayments = React.lazy(() => import('./pages/admin/MissedRepayments
 const LoansInArrears = React.lazy(() => import('./pages/admin/LoansInArrears'));
 const NoRepaymentLoans = React.lazy(() => import('./pages/admin/NoRepaymentLoans'));
 const PastMaturityDashboard = React.lazy(() => import('./pages/admin/PastMaturityDashboard'));
+const PrincipalOutstandingView = React.lazy(() => import('./pages/admin/PrincipalOutstandingView'));
 
 // Supervisor Pages
 const TeamOverview = React.lazy(() => import('./pages/supervisor/TeamOverview'));
@@ -184,6 +185,16 @@ function App() {
                       <ProtectedRoute allowedRoles={['admin']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <PastMaturityDashboard />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="admin/principal-outstanding"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <PrincipalOutstandingView />
                         </React.Suspense>
                       </ProtectedRoute>
                     }
