@@ -1,534 +1,267 @@
 const { sequelize } = require('../config/database');
-const { validationResult } = require('express-validator');
-const defineRepaymentModel = require('../models/Repayment');
+const { QueryTypes } = require('sequelize');
 
-let Repayment;
+// Record a new payment
+const recordPayment = async (req, res) => {
+    const { loanId, amount, paymentMethod, notes } = req.body;
 
-const getRepaymentModel = () => {
-    if (!Repayment) {
-        Repayment = defineRepaymentModel(sequelize);
+    if (!loanId || !amount || !paymentMethod) {
+        return res.status(400).json({ success: false, message: 'Loan ID, amount, and payment method are required.' });
     }
-    return Repayment;
-};
 
-const processRepayment = async (req, res) => {
-    const transaction = await sequelize.transaction();
-    
     try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            await transaction.rollback();
-            return res.status(400).json({
-                success: false,
-                message: 'Validation failed',
-                errors: errors.array()
-            });
-        }
+        // Start a transaction
+        const t = await sequelize.transaction();
 
-        console.log('💰 Processing loan repayment');
-        console.log('Request body:', req.body);
-
-        const {
-            loan_id,
-            amount_paid,
-            payment_date,
-            payment_method,
-            reference_number,
-            notes
-        } = req.body;
-
-        // Validate loan exists and is active
-        const [loans] = await sequelize.query(`
+        // 1. Fetch loan details and schedule
+        const [loan] = await sequelize.query(`
             SELECT 
-                l.*,
-                c.first_name,
-                c.last_name,
-                c.client_number
+                l.id, l.loan_number, l.client_id, l.total_loan_amount, l.total_interest, l.principal_amount,
+                l.interest_amount_accrued, l.total_paid_amount, l.total_due_amount
             FROM loans l
-            JOIN clients c ON l.client_id = c.id
-            WHERE l.id = ? AND l.status IN ('active', 'disbursed')
-        `, { replacements: [loan_id], transaction });
+            WHERE l.id = ?
+            FOR UPDATE
+        `, { replacements: [loanId], type: QueryTypes.SELECT, transaction: t });
 
-        if (loans.length === 0) {
-            await transaction.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'Active loan not found'
-            });
+        if (!loan) {
+            await t.rollback();
+            return res.status(404).json({ success: false, message: 'Loan not found.' });
         }
 
-        const loan = loans[0];
+        // 2. Determine which installment(s) to apply payment to
+        // For simplicity, let's apply to the earliest pending installment first
+        const [pendingInstallments] = await sequelize.query(`
+            SELECT id, installment_number, principal_due, interest_due, penalty_due, total_due
+            FROM loan_schedules
+            WHERE loan_id = ? AND status = 'pending'
+            ORDER BY due_date ASC
+            FOR UPDATE
+        `, { replacements: [loanId], type: QueryTypes.SELECT, transaction: t });
 
-        // Get outstanding schedule items (oldest first)
-        const [schedules] = await sequelize.query(`
-            SELECT * FROM loan_schedules 
-            WHERE loan_id = ? AND status IN ('pending', 'partial', 'overdue')
-            ORDER BY installment_number ASC
-        `, { replacements: [loan_id], transaction });
-
-        if (schedules.length === 0) {
-            await transaction.rollback();
-            return res.status(400).json({
-                success: false,
-                message: 'No outstanding installments found for this loan'
-            });
-        }
-
-        // Generate receipt number
-        const RepaymentModel = getRepaymentModel();
-        const receipt_number = await RepaymentModel.generateReceiptNumber();
-
-        let remainingAmount = parseFloat(amount_paid);
+        let remainingAmount = parseFloat(amount);
+        let installmentsPaid = [];
         let totalPrincipalPaid = 0;
         let totalInterestPaid = 0;
         let totalPenaltyPaid = 0;
-        const updatedSchedules = [];
 
-        // Process payment against outstanding schedules
-        for (const schedule of schedules) {
+        for (const installment of pendingInstallments) {
             if (remainingAmount <= 0) break;
 
-            const outstandingPrincipal = parseFloat(schedule.principal_due) - parseFloat(schedule.principal_paid || 0);
-            const outstandingInterest = parseFloat(schedule.interest_due) - parseFloat(schedule.interest_paid || 0);
-            const outstandingPenalty = parseFloat(schedule.penalty_amount || 0);
-            const totalOutstanding = outstandingPrincipal + outstandingInterest + outstandingPenalty;
+            let paymentAppliedToInstallment = 0;
+            const installmentRemainingDue = parseFloat(installment.total_due);
 
-            if (totalOutstanding <= 0) continue;
+            if (remainingAmount >= installmentRemainingDue) {
+                // Pay off this installment completely
+                paymentAppliedToInstallment = installmentRemainingDue;
+                remainingAmount -= installmentRemainingDue;
 
-            let principalPayment = 0;
-            let interestPayment = 0;
-            let penaltyPayment = 0;
+                totalPrincipalPaid += parseFloat(installment.principal_due);
+                totalInterestPaid += parseFloat(installment.interest_due);
+                totalPenaltyPaid += parseFloat(installment.penalty_due);
 
-            if (remainingAmount >= totalOutstanding) {
-                // Full payment of this installment
-                principalPayment = outstandingPrincipal;
-                interestPayment = outstandingInterest;
-                penaltyPayment = outstandingPenalty;
-                remainingAmount -= totalOutstanding;
+                await sequelize.query(`
+                    UPDATE loan_schedules
+                    SET 
+                        principal_paid = principal_due,
+                        interest_paid = interest_due,
+                        penalty_paid = penalty_due,
+                        total_paid = total_due,
+                        status = 'paid'
+                    WHERE id = ?
+                `, { replacements: [installment.id], type: QueryTypes.UPDATE, transaction: t });
+                installmentsPaid.push({ id: installment.id, amount_paid: installmentRemainingDue, status: 'paid' });
             } else {
-                // Partial payment - prioritize penalty, then interest, then principal
-                if (outstandingPenalty > 0) {
-                    penaltyPayment = Math.min(remainingAmount, outstandingPenalty);
-                    remainingAmount -= penaltyPayment;
-                }
+                // Partially pay this installment
+                paymentAppliedToInstallment = remainingAmount;
 
-                if (remainingAmount > 0 && outstandingInterest > 0) {
-                    interestPayment = Math.min(remainingAmount, outstandingInterest);
-                    remainingAmount -= interestPayment;
-                }
+                const principalRatio = parseFloat(installment.principal_due) / installmentRemainingDue;
+                const interestRatio = parseFloat(installment.interest_due) / installmentRemainingDue;
+                const penaltyRatio = parseFloat(installment.penalty_due) / installmentRemainingDue;
 
-                if (remainingAmount > 0 && outstandingPrincipal > 0) {
-                    principalPayment = Math.min(remainingAmount, outstandingPrincipal);
-                    remainingAmount -= principalPayment;
-                }
+                const partialPrincipal = paymentAppliedToInstallment * principalRatio;
+                const partialInterest = paymentAppliedToInstallment * interestRatio;
+                const partialPenalty = paymentAppliedToInstallment * penaltyRatio;
+
+                totalPrincipalPaid += partialPrincipal;
+                totalInterestPaid += partialInterest;
+                totalPenaltyPaid += partialPenalty;
+
+                await sequelize.query(`
+                    UPDATE loan_schedules
+                    SET 
+                        principal_paid = principal_paid + ?,
+                        interest_paid = interest_paid + ?,
+                        penalty_paid = penalty_paid + ?,
+                        total_paid = total_paid + ?,
+                        status = CASE WHEN (principal_paid + ?) >= principal_due AND (interest_paid + ?) >= interest_due AND (penalty_paid + ?) >= penalty_due THEN 'paid' ELSE 'pending' END
+                    WHERE id = ?
+                `, { replacements: [partialPrincipal, partialInterest, partialPenalty, paymentAppliedToInstallment, partialPrincipal, partialInterest, partialPenalty, installment.id], type: QueryTypes.UPDATE, transaction: t });
+                installmentsPaid.push({ id: installment.id, amount_paid: paymentAppliedToInstallment, status: 'partially_paid' });
+                remainingAmount = 0;
             }
-
-            // Round to 2 decimal places to prevent truncation
-            principalPayment = Math.round(principalPayment * 100) / 100;
-            interestPayment = Math.round(interestPayment * 100) / 100;
-            penaltyPayment = Math.round(penaltyPayment * 100) / 100;
-
-            // Update schedule
-            const newPrincipalPaid = Math.round((parseFloat(schedule.principal_paid || 0) + principalPayment) * 100) / 100;
-            const newInterestPaid = Math.round((parseFloat(schedule.interest_paid || 0) + interestPayment) * 100) / 100;
-            const newTotalPaid = Math.round((newPrincipalPaid + newInterestPaid + penaltyPayment) * 100) / 100;
-
-            let newStatus = 'pending';
-            if (newPrincipalPaid >= parseFloat(schedule.principal_due) && newInterestPaid >= parseFloat(schedule.interest_due)) {
-                newStatus = 'paid';
-            } else if (newPrincipalPaid > 0 || newInterestPaid > 0) {
-                newStatus = 'partial';
-            }
-
-            console.log(`Updating schedule ${schedule.id}:`, {
-                principalPayment,
-                interestPayment,
-                newPrincipalPaid,
-                newInterestPaid,
-                newTotalPaid,
-                newStatus
-            });
-
-            await sequelize.query(`
-                UPDATE loan_schedules 
-                SET 
-                    principal_paid = ?,
-                    interest_paid = ?,
-                    total_paid = ?,
-                    payment_date = ?,
-                    status = ?,
-                    updated_at = NOW()
-                WHERE id = ?
-            `, {
-                replacements: [
-                    newPrincipalPaid,
-                    newInterestPaid,
-                    newTotalPaid,
-                    payment_date,
-                    newStatus,
-                    schedule.id
-                ],
-                transaction
-            });
-
-            totalPrincipalPaid += principalPayment;
-            totalInterestPaid += interestPayment;
-            totalPenaltyPaid += penaltyPayment;
-
-            updatedSchedules.push({
-                installment_number: schedule.installment_number,
-                principal_paid: principalPayment,
-                interest_paid: interestPayment,
-                penalty_paid: penaltyPayment,
-                status: newStatus
-            });
         }
 
-        // Round totals to prevent truncation
-        totalPrincipalPaid = Math.round(totalPrincipalPaid * 100) / 100;
-        totalInterestPaid = Math.round(totalInterestPaid * 100) / 100;
-        totalPenaltyPaid = Math.round(totalPenaltyPaid * 100) / 100;
-        const finalAmountPaid = Math.round(parseFloat(amount_paid) * 100) / 100;
+        // 3. Update loan summary (total_paid_amount, total_due_amount, status)
+        const newTotalPaidAmount = parseFloat(loan.total_paid_amount || 0) + parseFloat(amount);
+        const newTotalDueAmount = parseFloat(loan.total_due_amount || 0) - parseFloat(amount);
 
-        console.log('Creating repayment record:', {
-            loan_id,
-            receipt_number,
-            payment_date,
-            finalAmountPaid,
-            totalPrincipalPaid,
-            totalInterestPaid,
-            totalPenaltyPaid
-        });
+        let loanStatus = loan.status; // Keep current status unless fully paid
 
-        // Create repayment record
-        await sequelize.query(`
-            INSERT INTO repayments (
-                loan_id,
-                receipt_number,
-                payment_date,
-                amount_paid,
-                principal_paid,
-                interest_paid,
-                penalty_paid,
-                payment_method,
-                reference_number,
-                received_by,
-                notes,
-                status,
-                created_at,
-                updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', NOW(), NOW())
-        `, {
-            replacements: [
-                loan_id,
-                receipt_number,
-                payment_date,
-                finalAmountPaid,
-                totalPrincipalPaid,
-                totalInterestPaid,
-                totalPenaltyPaid,
-                payment_method || 'cash',
-                reference_number || null,
-                req.user?.userId || req.user?.id,
-                notes || null
-            ],
-            transaction
-        });
+        // Check if all installments are paid
+        const [unpaidInstallmentsCount] = await sequelize.query(`
+            SELECT COUNT(*) as count FROM loan_schedules WHERE loan_id = ? AND status = 'pending'
+        `, { replacements: [loanId], type: QueryTypes.SELECT, transaction: t });
 
-        // Update loan balances
-        const currentPrincipalBalance = parseFloat(loan.principal_balance || loan.applied_amount);
-        const currentInterestBalance = parseFloat(loan.interest_balance || 0);
-        
-        const newPrincipalBalance = Math.round((currentPrincipalBalance - totalPrincipalPaid) * 100) / 100;
-        const newInterestBalance = Math.round((currentInterestBalance - totalInterestPaid) * 100) / 100;
-        const newLoanBalance = Math.round((newPrincipalBalance + newInterestBalance) * 100) / 100;
-
-        // Count paid installments
-        const [paidCount] = await sequelize.query(`
-            SELECT COUNT(*) as paid_count 
-            FROM loan_schedules 
-            WHERE loan_id = ? AND status = 'paid'
-        `, { replacements: [loan_id], transaction });
-
-        const installmentsPaid = parseInt(paidCount[0].paid_count);
-        const installmentsOutstanding = parseInt(loan.total_installments) - installmentsPaid;
-
-        // Determine loan status
-        let loanStatus = loan.status;
-        if (newLoanBalance <= 0 || installmentsOutstanding <= 0) {
+        if (unpaidInstallmentsCount[0].count === 0) {
             loanStatus = 'completed';
         }
 
-        console.log('Updating loan balances:', {
-            newPrincipalBalance,
-            newInterestBalance,
-            newLoanBalance,
-            installmentsPaid,
-            installmentsOutstanding,
-            loanStatus
-        });
-
         await sequelize.query(`
-            UPDATE loans 
+            UPDATE loans
             SET 
-                principal_balance = ?,
-                interest_balance = ?,
-                loan_balance = ?,
-                installments_paid = ?,
-                installments_outstanding = ?,
-                last_payment_date = ?,
-                status = ?,
-                updated_at = NOW()
+                total_paid_amount = ?,
+                total_due_amount = ?,
+                status = ?
             WHERE id = ?
+        `, { replacements: [newTotalPaidAmount, newTotalDueAmount, loanStatus, loanId], type: QueryTypes.UPDATE, transaction: t });
+
+        // 4. Record the repayment in the repayments table
+        const [repaymentResult] = await sequelize.query(`
+            INSERT INTO repayments (
+                loan_id, amount_paid, payment_method, payment_date, notes, created_at, updated_at, receipt_number,
+                principal_paid, interest_paid, penalty_paid
+            ) VALUES (?, ?, ?, CURDATE(), ?, NOW(), NOW(), ?, ?, ?, ?)
         `, {
             replacements: [
-                newPrincipalBalance,
-                newInterestBalance,
-                newLoanBalance,
-                installmentsPaid,
-                installmentsOutstanding,
-                payment_date,
-                loanStatus,
-                loan_id
+                loanId, parseFloat(amount), paymentMethod, notes,
+                `REC-${Date.now()}`,
+                totalPrincipalPaid,
+                totalInterestPaid,
+                totalPenaltyPaid
             ],
-            transaction
+            type: QueryTypes.INSERT, transaction: t
         });
 
-        // Get updated loan details
-        const [updatedLoan] = await sequelize.query(`
-            SELECT 
-                l.*,
-                c.first_name as client_first_name,
-                c.last_name as client_last_name,
-                c.client_number
-            FROM loans l
-            JOIN clients c ON l.client_id = c.id
-            WHERE l.id = ?
-        `, { replacements: [loan_id], transaction });
-
-        await transaction.commit();
-
-        console.log('✅ Repayment processed successfully:', receipt_number);
-
-        res.status(201).json({
-            success: true,
-            message: 'Repayment processed successfully',
-            data: {
-                receipt_number,
-                loan: updatedLoan[0],
-                payment_details: {
-                    amount_paid: finalAmountPaid,
-                    principal_paid: totalPrincipalPaid,
-                    interest_paid: totalInterestPaid,
-                    penalty_paid: totalPenaltyPaid,
-                    excess_amount: Math.round(remainingAmount * 100) / 100
-                },
-                updated_schedules: updatedSchedules
-            }
-        });
-
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Process repayment error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error processing repayment',
-            error: error.message
-        });
-    }
-};
-
-
-const getRepayments = async (req, res) => {
-    try {
-        const {
-            page = 1,
-            limit = 10,
-            loan_id,
-            payment_date_from,
-            payment_date_to,
-            payment_method,
-            received_by,
-            search
-        } = req.query;
-
-        const offset = (page - 1) * limit;
-
-        let whereClause = '';
-        let replacements = [];
-        const conditions = [];
-
-        if (loan_id) {
-            conditions.push('r.loan_id = ?');
-            replacements.push(loan_id);
-        }
-
-        if (payment_date_from) {
-            conditions.push('r.payment_date >= ?');
-            replacements.push(payment_date_from);
-        }
-
-        if (payment_date_to) {
-            conditions.push('r.payment_date <= ?');
-            replacements.push(payment_date_to);
-        }
-
-        if (payment_method) {
-            conditions.push('r.payment_method = ?');
-            replacements.push(payment_method);
-        }
-
-        if (received_by) {
-            conditions.push('r.received_by = ?');
-            replacements.push(received_by);
-        }
-
-        if (search) {
-            conditions.push('(r.receipt_number LIKE ? OR l.loan_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ?)');
-            const searchTerm = `%${search}%`;
-            replacements.push(searchTerm, searchTerm, searchTerm, searchTerm);
-        }
-
-        if (conditions.length > 0) {
-            whereClause = ' WHERE ' + conditions.join(' AND ');
-        }
-
-        // Get total count
-        const [countResult] = await sequelize.query(
-            `SELECT COUNT(*) as total 
-             FROM repayments r 
-             JOIN loans l ON r.loan_id = l.id 
-             JOIN clients c ON l.client_id = c.id${whereClause}`,
-            { replacements }
-        );
-
-        const total = countResult[0].total;
-
-        // Get repayments
-        const [repayments] = await sequelize.query(`
-            SELECT 
-                r.*,
-                l.loan_number,
-                l.loan_account,
-                c.first_name as client_first_name,
-                c.last_name as client_last_name,
-                c.client_number,
-                u.first_name as received_by_first_name,
-                u.last_name as received_by_last_name
-            FROM repayments r
-            JOIN loans l ON r.loan_id = l.id
-            JOIN clients c ON l.client_id = c.id
-            LEFT JOIN users u ON r.received_by = u.id
-            ${whereClause}
-            ORDER BY r.created_at DESC
-            LIMIT ? OFFSET ?
-        `, {
-            replacements: [...replacements, parseInt(limit), parseInt(offset)]
-        });
+        await t.commit();
 
         res.status(200).json({
             success: true,
-            data: {
-                repayments,
-                pagination: {
-                    page: parseInt(page),
-                    limit: parseInt(limit),
-                    total,
-                    pages: Math.ceil(total / limit)
-                }
-            }
+            message: 'Payment recorded successfully',
+            data: { repaymentId: repaymentResult[0], installmentsPaid }
         });
 
     } catch (error) {
-        console.error('Get repayments error:', error);
+        console.error('Error recording payment:', error);
+        if (t) await t.rollback();
         res.status(500).json({
             success: false,
-            message: 'Error fetching repayments',
+            message: 'Failed to record payment',
             error: error.message
         });
     }
 };
 
-const getRepayment = async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const [repayments] = await sequelize.query(`
-            SELECT 
-                r.*,
-                l.loan_number,
-                l.loan_account,
-                c.first_name as client_first_name,
-                c.last_name as client_last_name,
-                c.client_number,
-                u.first_name as received_by_first_name,
-                u.last_name as received_by_last_name
-            FROM repayments r
-            JOIN loans l ON r.loan_id = l.id
-            JOIN clients c ON l.client_id = c.id
-            LEFT JOIN users u ON r.received_by = u.id
-            WHERE r.id = ?
-        `, { replacements: [id] });
-
-        if (repayments.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Repayment not found'
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: { repayment: repayments[0] }
-        });
-
-    } catch (error) {
-        console.error('Get repayment error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching repayment',
-            error: error.message
-        });
-    }
-};
-
+// Get repayments for a loan
 const getLoanRepayments = async (req, res) => {
     try {
         const { loanId } = req.params;
-
         const [repayments] = await sequelize.query(`
-            SELECT 
-                r.*,
-                u.first_name as received_by_first_name,
-                u.last_name as received_by_last_name
-            FROM repayments r
-            LEFT JOIN users u ON r.received_by = u.id
-            WHERE r.loan_id = ?
-            ORDER BY r.payment_date DESC, r.created_at DESC
-        `, { replacements: [loanId] });
+            SELECT * FROM repayments WHERE loan_id = ? ORDER BY payment_date DESC, created_at DESC
+        `, { replacements: [loanId], type: QueryTypes.SELECT });
+
+        res.status(200).json({ success: true, data: repayments });
+    } catch (error) {
+        console.error('Error fetching loan repayments:', error);
+        res.status(500).json({ success: false, message: 'Error fetching loan repayments', error: error.message });
+    }
+};
+
+// Get all repayments with filters (existing function, ensure it's working)
+const getRepayments = async (req, res) => {
+    try {
+        const { loanId, clientId, method, status, startDate, endDate, page = 1, limit = 10 } = req.query;
+        let query = `SELECT r.*, l.loan_number, c.first_name, c.last_name
+                     FROM repayments r
+                     JOIN loans l ON r.loan_id = l.id
+                     JOIN clients c ON l.client_id = c.id WHERE 1=1`;
+        const replacements = [];
+
+        if (loanId) {
+            query += ` AND r.loan_id = ?`;
+            replacements.push(loanId);
+        }
+        if (clientId) {
+            query += ` AND l.client_id = ?`;
+            replacements.push(clientId);
+        }
+        if (method) {
+            query += ` AND r.payment_method = ?`;
+            replacements.push(method);
+        }
+        if (status) {
+            query += ` AND r.status = ?`;
+            replacements.push(status);
+        }
+        if (startDate) {
+            query += ` AND r.payment_date >= ?`;
+            replacements.push(startDate);
+        }
+        if (endDate) {
+            query += ` AND r.payment_date <= ?`;
+            replacements.push(endDate);
+        }
+
+        // Get total count for pagination
+        const [countResult] = await sequelize.query(`SELECT COUNT(*) as total FROM (${query}) as subquery`, { replacements });
+        const total = countResult[0].total;
+
+        query += ` ORDER BY r.created_at DESC LIMIT ? OFFSET ?`;
+        replacements.push(parseInt(limit));
+        replacements.push((parseInt(page) - 1) * parseInt(limit));
+
+        const [repayments] = await sequelize.query(query, { replacements });
 
         res.status(200).json({
             success: true,
-            data: { 
-                loan_id: loanId,
+            data: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
                 repayments,
-                total_repayments: repayments.length
-            }
+            },
         });
-
     } catch (error) {
-        console.error('Get loan repayments error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching loan repayments',
-            error: error.message
-        });
+        console.error('Error fetching repayments:', error);
+        res.status(500).json({ success: false, message: 'Error fetching repayments', error: error.message });
+    }
+};
+
+// Get a single repayment by ID (existing function, ensure it's working)
+const getRepayment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [repayment] = await sequelize.query(`
+            SELECT r.*, l.loan_number, c.first_name, c.last_name
+            FROM repayments r
+            JOIN loans l ON r.loan_id = l.id
+            JOIN clients c ON l.client_id = c.id
+            WHERE r.id = ?
+        `, { replacements: [id], type: QueryTypes.SELECT });
+
+        if (!repayment || repayment.length === 0) {
+            return res.status(404).json({ success: false, message: 'Repayment not found' });
+        }
+
+        res.status(200).json({ success: true, data: repayment[0] });
+    } catch (error) {
+        console.error('Error fetching repayment:', error);
+        res.status(500).json({ success: false, message: 'Error fetching repayment', error: error.message });
     }
 };
 
 module.exports = {
-    processRepayment,
+    recordPayment,
+    getLoanRepayments,
     getRepayments,
-    getRepayment,
-    getLoanRepayments
+    getRepayment
 };

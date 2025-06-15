@@ -85,12 +85,19 @@ const LoanRow = ({ loan, onView, onEdit, onDelete }) => {
         });
     };
 
-    // Use the calculated values from backend
-    const principal = parseFloat(loan.principal || 0);
-    const totalDue = parseFloat(loan.total_due || 0);
-    const totalPaid = parseFloat(loan.total_paid || 0);
-    const balance = parseFloat(loan.balance || 0);
-    const interestRate = parseFloat(loan.nominal_interest_rate || 0);
+    // Fix: Use the correct property names from your backend response
+    const appliedAmount = parseFloat(loan.applied_amount || 0);
+    const approvedAmount = parseFloat(loan.approved_amount || 0);
+    const principalBalance = parseFloat(loan.principal_balance || 0);
+    const interestBalance = parseFloat(loan.interest_balance || 0);
+    const loanBalance = parseFloat(loan.loan_balance || 0);
+    const interestRate = parseFloat(loan.interest_rate || 0);
+
+    // Calculate total due (principal + interest)
+    const totalDue = principalBalance + interestBalance;
+
+    // For now, we'll assume total paid = applied/approved - current balance
+    const totalPaid = (approvedAmount || appliedAmount) - loanBalance;
 
     return (
         <tr className="hover:bg-gray-50 border-b border-gray-200">
@@ -126,13 +133,13 @@ const LoanRow = ({ loan, onView, onEdit, onDelete }) => {
                 </div>
             </td>
 
-            {/* Principal */}
+            {/* Principal - Use applied_amount or approved_amount */}
             <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-gray-900">
-                    {formatCurrency(principal)}
+                    {formatCurrency(approvedAmount || appliedAmount)}
                 </div>
                 <div className="text-xs text-gray-500">
-                    Principal Amount
+                    {loan.status === 'pending' ? 'Applied' : 'Principal Amount'}
                 </div>
             </td>
 
@@ -142,7 +149,7 @@ const LoanRow = ({ loan, onView, onEdit, onDelete }) => {
                     {interestRate.toFixed(2)}%
                 </div>
                 <div className="text-xs text-gray-500">
-                    {loan.interest_calculation_method || 'reducing_balance'}
+                    {loan.interest_rate_method || 'reducing_balance'}
                 </div>
             </td>
 
@@ -159,7 +166,7 @@ const LoanRow = ({ loan, onView, onEdit, onDelete }) => {
             {/* Paid */}
             <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-green-600">
-                    {formatCurrency(totalPaid)}
+                    {formatCurrency(Math.max(0, totalPaid))}
                 </div>
                 <div className="text-xs text-gray-500">
                     {loan.installments_paid || 0}/{loan.total_installments || 0} payments
@@ -168,8 +175,8 @@ const LoanRow = ({ loan, onView, onEdit, onDelete }) => {
 
             {/* Balance */}
             <td className="px-6 py-4 whitespace-nowrap">
-                <div className={`text-sm font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {formatCurrency(balance)}
+                <div className={`text-sm font-medium ${loanBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formatCurrency(loanBalance)}
                 </div>
                 <div className="text-xs text-gray-500">
                     Outstanding
@@ -234,6 +241,7 @@ const LoanRow = ({ loan, onView, onEdit, onDelete }) => {
         </tr>
     );
 };
+
 
 
 // Helper functions for status colors
@@ -391,9 +399,13 @@ const ViewAllLoans = () => {
     // Calculate summary statistics
     const summaryStats = {
         totalLoans: loans.length,
-        totalPrincipal: loans.reduce((sum, loan) => sum + (loan.principal || loan.disbursed_amount || 0), 0),
-        totalPaid: loans.reduce((sum, loan) => sum + (loan.total_paid || 0), 0),
-        totalBalance: loans.reduce((sum, loan) => sum + (loan.balance || 0), 0),
+        totalPrincipal: loans.reduce((sum, loan) => sum + (parseFloat(loan.approved_amount) || parseFloat(loan.applied_amount) || 0), 0),
+        totalPaid: loans.reduce((sum, loan) => {
+            const appliedOrApproved = parseFloat(loan.approved_amount) || parseFloat(loan.applied_amount) || 0;
+            const balance = parseFloat(loan.loan_balance) || 0;
+            return sum + Math.max(0, appliedOrApproved - balance);
+        }, 0),
+        totalBalance: loans.reduce((sum, loan) => sum + (parseFloat(loan.loan_balance) || 0), 0),
         activeLoans: loans.filter(loan => loan.status === 'active').length,
         defaultedLoans: loans.filter(loan => loan.status === 'defaulted').length
     };

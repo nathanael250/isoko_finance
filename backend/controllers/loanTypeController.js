@@ -8,6 +8,7 @@ const User = require('../models/User');
 // @access  Private
 const getLoanTypes = async (req, res) => {
   try {
+    console.log('Fetching loan types with query:', req.query);
     const { 
       page = 1, 
       limit = 10, 
@@ -54,6 +55,7 @@ const getLoanTypes = async (req, res) => {
       ]
     });
 
+    console.log(`Found ${count} loan types.`);
     res.status(200).json({
       success: true,
       data: {

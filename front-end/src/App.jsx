@@ -7,6 +7,7 @@ import PublicRoute from './components/auth/PublicRoute';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import { useAuth } from './context/AuthContext';
 
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage';
@@ -42,6 +43,16 @@ const PerformanceMetrics = React.lazy(() => import('./pages/supervisor/Performan
 const LoanApplications = React.lazy(() => import('./pages/loan-officer/LoanApplications'));
 const ClientManagement = React.lazy(() => import('./pages/loan-officer/ClientManagement'));
 const DocumentProcessing = React.lazy(() => import('./pages/loan-officer/DocumentProcessing'));
+const LoanOfficerBorrowers = React.lazy(() => import('./pages/loan-officer/LoanOfficerBorrowers'));
+const LoanOfficerAddLoan = React.lazy(() => import('./pages/loan-officer/AddLoan'));
+const LoanOfficerDueLoans = React.lazy(() => import('./pages/loan-officer/DueLoans'));
+const LoanOfficerNoRepaymentLoans = React.lazy(() => import('./pages/loan-officer/NoRepaymentLoans'));
+const LoanOfficerLoansInArrears = React.lazy(() => import('./pages/loan-officer/LoansInArrears'));
+const LoanOfficerMissedRepayments = React.lazy(() => import('./pages/loan-officer/MissedRepayments'));
+const LoanCalculator = React.lazy(() => import('./pages/loan-officer/LoanCalculator'));
+const MyLoans = React.lazy(() => import('./pages/loan-officer/MyLoans'));
+const ClientLoans = React.lazy(() => import('./pages/loan-officer/ClientLoans'));
+const BorrowerLoanDetails = React.lazy(() => import('./pages/loan-officer/BorrowerLoanDetails'));
 
 // Cashier Pages
 const Transactions = React.lazy(() => import('./pages/cashier/Transactions'));
@@ -53,7 +64,20 @@ const ProfilePage = React.lazy(() => import('./pages/shared/ProfilePage'));
 const NotFoundPage = React.lazy(() => import('./pages/shared/NotFoundPage'));
 const UnauthorizedPage = React.lazy(() => import('./pages/shared/UnauthorizedPage'));
 
+// Borrowers Pages
+const AllBorrowers = React.lazy(() => import('./pages/borrowers/AllBorrowers'));
+const AddBorrower = React.lazy(() => import('./pages/borrowers/AddBorrower'));
+
+// New imports
+import ReceiptDisplay from './pages/ReceiptDisplay';
+
 function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
@@ -122,7 +146,7 @@ function App() {
                   <Route
                     path="admin/loans/add"
                     element={
-                      <ProtectedRoute allowedRoles={['admin', 'loan-officer', 'supervisor']}>
+                      <ProtectedRoute allowedRoles={['admin']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <AddLoan />
                         </React.Suspense>
@@ -264,6 +288,28 @@ function App() {
                     }
                   />
 
+                  {/* Borrowers Routes */}
+                  <Route
+                    path="borrowers"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'supervisor']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <AllBorrowers />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="borrowers/add"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'supervisor', 'loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <AddBorrower />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+
                   {/* Loan Officer Routes */}
                   <Route
                     path="loan-officer"
@@ -286,11 +332,31 @@ function App() {
                     }
                   />
                   <Route
-                    path="loan-officer/clients"
+                    path="loan-officer/borrowers"
                     element={
                       <ProtectedRoute allowedRoles={['loan-officer', 'supervisor', 'admin']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanOfficerBorrowers />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/clients"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
                           <ClientManagement />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/clients/:clientId/loans"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <ClientLoans />
                         </React.Suspense>
                       </ProtectedRoute>
                     }
@@ -301,6 +367,86 @@ function App() {
                       <ProtectedRoute allowedRoles={['loan-officer', 'supervisor', 'admin']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <DocumentProcessing />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/loans/add"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanOfficerAddLoan />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/due-loans"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanOfficerDueLoans />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/no-repayment-loans"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanOfficerNoRepaymentLoans />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/loans-in-arrears"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanOfficerLoansInArrears />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/missed-repayments"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanOfficerMissedRepayments />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/calculator"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanCalculator />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/my-loans"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <MyLoans />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="loan-officer/borrower-loans/:borrowerId"
+                    element={
+                      <ProtectedRoute allowedRoles={['loan-officer']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <BorrowerLoanDetails />
                         </React.Suspense>
                       </ProtectedRoute>
                     }
@@ -355,6 +501,18 @@ function App() {
                       <React.Suspense fallback={<LoadingSpinner />}>
                         <ProfilePage />
                       </React.Suspense>
+                    }
+                  />
+
+                  {/* New routes */}
+                  <Route
+                    path="receipt/:repaymentId"
+                    element={
+                      <ProtectedRoute allowedRoles={['cashier', 'supervisor', 'admin']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <ReceiptDisplay />
+                        </React.Suspense>
+                      </ProtectedRoute>
                     }
                   />
                 </Route>

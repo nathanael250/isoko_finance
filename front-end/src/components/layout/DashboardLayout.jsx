@@ -1,36 +1,151 @@
 import { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { CircleUserRound } from 'lucide-react';
-import {
-    AlignJustify,
-    Split,
-    Contact,
-    Scale,
-    Banknote,
-    List,
-    Calendar,
-    ChevronDown,
-    ChevronRight
-} from 'lucide-react';
-import { LayoutDashboard } from 'lucide-react';
-import { User } from 'lucide-react';
-import { StickyNote } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { navigationConfig } from '../../components/config/navigationConfig';
+import Header from '../ui/Header';
 
 const DashboardLayout = () => {
+    const { user } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [loansDropdownOpen, setLoansDropdownOpen] = useState(false);
+    const [openDropdowns, setOpenDropdowns] = useState({});
 
-    const toggleLoansDropdown = () => {
-        setLoansDropdownOpen(!loansDropdownOpen);
+    const toggleSidebar = () => {
+        setSidebarOpen(!sidebarOpen);
+    };
+
+    const toggleDropdown = (key) => {
+        setOpenDropdowns(prev => ({
+            ...prev,
+            [key]: !prev[key]
+        }));
+    };
+
+    // Filter navigation based on user role with specific business logic
+    const getFilteredNavigation = () => {
+        if (!user?.role) return [];
+        
+        return navigationConfig.filter(item => {
+            // Check if user role is allowed for this navigation item
+            const hasAccess = item.roles.includes(user.role);
+            
+            if (hasAccess && item.children) {
+                // Filter children based on user role
+                item.filteredChildren = item.children.filter(child => 
+                    child.roles.includes(user.role)
+                );
+                // Only show parent if it has accessible children
+                return item.filteredChildren.length > 0;
+            }
+            
+            return hasAccess;
+        });
+    };
+
+    const filteredNavigation = getFilteredNavigation();
+
+    // Get role-specific welcome message
+    const getRoleWelcomeMessage = () => {
+        switch(user?.role) {
+            case 'admin':
+                return 'Administrator Dashboard';
+            case 'supervisor':
+                return 'Supervisor Dashboard';
+            case 'loan-officer':
+                return 'Loan Officer Dashboard - Your Assigned Portfolio';
+            case 'cashier':
+                return 'Cashier Dashboard - Loan Requests';
+            default:
+                return 'Dashboard';
+        }
+    };
+
+    // Render navigation item
+    const renderNavigationItem = (item) => {
+        const IconComponent = item.icon;
+        const isDropdownOpen = openDropdowns[item.id];
+
+        if (item.hasDropdown) {
+            return (
+                <li key={item.id}>
+                    <div>
+                        <button
+                            onClick={() => toggleDropdown(item.id)}
+                            className="group text-white relative flex items-center justify-between w-full gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4"
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <IconComponent className='w-5 h-5 text-white' />
+                                {item.title}
+                                {/* Add role-specific indicators */}
+                                {user?.role === 'loan-officer' && item.id === 'loans' && (
+                                    <span className="text-xs bg-blue-500 px-1 rounded">My Portfolio</span>
+                                )}
+                                {user?.role === 'cashier' && item.id === 'loans' && (
+                                    <span className="text-xs bg-green-500 px-1 rounded">Requests</span>
+                                )}
+                            </div>
+                            {isDropdownOpen ? (
+                                <ChevronDown className='w-4 h-4 text-white' />
+                            ) : (
+                                <ChevronRight className='w-4 h-4 text-white' />
+                            )}
+                        </button>
+                        
+                        {/* Dropdown Menu */}
+                        {isDropdownOpen && (
+                            <ul className="mt-2 ml-4 space-y-1">
+                                {(item.filteredChildren || item.children)?.map((child, index) => (
+                                    <li key={index}>
+                                        <Link
+                                            to={child.path}
+                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4"
+                                        >
+                                            {child.title}
+                                            {/* Add role-specific badges */}
+                                            {user?.role === 'loan-officer' && child.title.includes('My') && (
+                                                <span className="text-xs bg-blue-400 px-1 rounded ml-auto">Assigned</span>
+                                            )}
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </li>
+            );
+        }
+
+        // Regular navigation item without dropdown
+        return (
+            <li key={item.id}>
+                <Link
+                    to={typeof item.path === 'function' ? item.path(user?.role) : item.path}
+                    className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4"
+                >
+                    <IconComponent className='w-5 h-5 text-white' />
+                    {item.title}
+                    {/* Add role-specific indicators */}
+                    {user?.role === 'loan-officer' && item.id === 'borrowers' && (
+                        <span className="text-xs bg-blue-500 px-1 rounded ml-auto">Assigned</span>
+                    )}
+                </Link>
+            </li>
+        );
     };
 
     return (
         <div className="dark:bg-boxdark-2 dark:text-bodydark">
             <div className="flex h-screen overflow-hidden">
-                <aside className="absolute left-0 top-0 z-9999 flex h-screen w-50 flex-col overflow-y-hidden bg-[#222D32] duration-300 ease-linear dark:bg-boxdark lg:static lg:translate-x-0">
+                {/* Sidebar */}
+                <aside className={`absolute left-0 top-0 z-9999 flex h-screen w-50 flex-col overflow-y-hidden bg-[#222D32] duration-300 ease-linear dark:bg-boxdark lg:static lg:translate-x-0 ${
+                    sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}>
                     <div className="flex items-center justify-between gap-2 px-6 py-5.5 lg:py-6.5">
                         <h1 className='text-white font-semibold text-2xl'>ISOKO INV.</h1>
-                        <button className="block lg:hidden">
+                        <button 
+                            className="block lg:hidden"
+                            onClick={toggleSidebar}
+                        >
                             <svg
                                 className="fill-current"
                                 width="20"
@@ -46,224 +161,69 @@ const DashboardLayout = () => {
                             </svg>
                         </button>
                     </div>
+
+                    {/* Role indicator */}
+                    <div className="px-6 pb-4">
+                        <div className="text-xs text-gray-400 uppercase tracking-wider">
+                            {user?.role?.replace('-', ' ')} Portal
+                        </div>
+                        <div className="text-sm text-gray-300 mt-1">
+                            {user?.first_name} {user?.last_name}
+                        </div>
+                    </div>
+                    
                     <div className="no-scrollbar flex flex-col overflow-y-auto text-sm duration-300 ease-linear">
                         <nav className="mt-5 py-4 px-2 lg:mt-9 lg:px-4">
                             <div>
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/dashboard"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                            <LayoutDashboard className='w-5 h-5 text-white' />
-                                            Dashboard
-                                        </Link>
-                                    </li>
-                                </ul>
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/branches"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                            <Split className='w-5 h-5 text-white' />
-                                            Branches
-                                        </Link>
-                                    </li>
-                                </ul>
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/users"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                            <User className='w-5 h-5 text-white' />
-                                            Users
-                                        </Link>
-                                    </li>
-                                </ul>
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/borrowers"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                            <Contact className='w-5 h-5 text-white' />
-                                            Borrowers
-                                        </Link>
-                                    </li>
-                                </ul>
-                                
-                                {/* Loans with Dropdown */}
-                                <ul>
-                                    <li>
-                                        <div>
-                                            <button
-                                                onClick={toggleLoansDropdown}
-                                                className="group text-white relative flex items-center justify-between w-full gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                                <div className="flex items-center gap-2.5">
-                                                    <Scale className='w-5 h-5 text-white' />
-                                                    Loans
-                                                </div>
-                                                {loansDropdownOpen ? (
-                                                    <ChevronDown className='w-4 h-4 text-white' />
-                                                ) : (
-                                                    <ChevronRight className='w-4 h-4 text-white' />
-                                                )}
-                                            </button>
-                                            
-                                            {/* Dropdown Menu */}
-                                            {loansDropdownOpen && (
-                                                <ul className="mt-2 ml-4 space-y-1">
-                                                    <li>
-                                                        <Link
-                                                            to="admin/loans"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            View All Loans
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="admin/loans/add"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Add Loans
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="admin/due-loans"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Due Loans
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="admin/missed-repayments"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Missed Repayments
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="admin/loans-in-arrears"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Loans in Arrears
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="admin/no-repayment-loans"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            No Repayments
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="admin/past-maturity"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Past Maturity Date
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="admin/principal-outstanding"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Principal Outstanding
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="/loans/one-month-late"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            1 Month Late Loans
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="/loans/calculator"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Loans Calculator
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="/loans/guarantors"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Guarantors
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="/loans/comments"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Loans Comments
-                                                        </Link>
-                                                    </li>
-                                                    <li>
-                                                        <Link
-                                                            to="/loans/approve"
-                                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                                            Approve Loans
-                                                        </Link>
-                                                    </li>
-                                                </ul>
-                                            )}
-                                        </div>
-                                    </li>
+                                <ul className="space-y-1">
+                                    {filteredNavigation.map(item => renderNavigationItem(item))}
                                 </ul>
 
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/repayment"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                            <Banknote className='w-5 h-5 text-white' />
-                                            Repayment
-                                        </Link>
-                                    </li>
-                                </ul>
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/collateral-register"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4">
-                                            <List className='w-5 h-5 text-white' />
-                                            Collateral Register
-                                        </Link>
-                                    </li>
-                                </ul>
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/calendar"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                            <Calendar className='w-5 h-5 text-white' />
-                                            Calendar
-                                        </Link>
-                                    </li>
-                                </ul>
-                                <ul>
-                                    <li>
-                                        <Link
-                                            to="/collection-sheets"
-                                            className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4">
-                                            <StickyNote className='w-5 h-5 text-white' />
-                                            Collection Sheets
-                                        </Link>
-                                    </li>
-                                </ul>
+                                {/* Role-specific help text */}
+                                <div className="mt-8 px-2">
+                                    <div className="text-xs text-gray-400 border-t border-gray-600 pt-4">
+                                        {user?.role === 'loan-officer' && (
+                                            <p>You can only view borrowers and loans assigned to you.</p>
+                                        )}
+                                        {user?.role === 'cashier' && (
+                                            <p>You can view and process loan requests.</p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </nav>
                     </div>
                 </aside>
+
+                {/* Mobile sidebar overlay */}
+                {sidebarOpen && (
+                    <div 
+                        className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                        onClick={toggleSidebar}
+                    />
+                )}
+
+                {/* Main Content Area */}
                 <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-                    <header className="sticky top-0 z-999 flex w-full bg-[#00509E] drop-shadow-1 dark:bg-boxdark dark:drop-shadow-none">
-                        <div className="flex flex-grow items-center justify-between py-2 px-4 shadow-2 md:px-6 2xl:px-11">
-                            <AlignJustify className='text-white w-8 h-8 cursor-pointer' />
-                            <div className='flex flex-col justify-center items-center gap'>
-                                <CircleUserRound className='w-5 h-5 text-white' />
-                                <span className='text-white'>MUHIRE Jean</span>
-                            </div>
-                        </div>
-                    </header>
+                    <Header onMenuToggle={toggleSidebar} />
                     <main>
                         <div className="mx-auto max-w-screen-2xl p-2 md:p-6 2xl:p-2">
+                            {/* Role-specific welcome message */}
+                            <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-400 dark:bg-gray-800 dark:border-blue-500">
+                                <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-200">
+                                    {getRoleWelcomeMessage()}
+                                </h2>
+                                {user?.role === 'loan-officer' && (
+                                    <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                                        Access is limited to your assigned borrowers and loans only.
+                                    </p>
+                                )}
+                                {user?.role === 'cashier' && (
+                                    <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                                        You can view and process loan requests.
+                                    </p>
+                                )}
+                            </div>
                             <Outlet />
                         </div>
                     </main>

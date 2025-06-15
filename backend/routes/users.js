@@ -3,13 +3,14 @@ const router = express.Router();
 
 // Import controller functions
 const {
+    getDashboard,
     getUsers,
     createUser,
     getUser,
     updateUser,
     deleteUser
 } = require('../controllers/userController');
-
+const {protect} = require('../middleware/auth')
 // Import validation middleware
 const {
     createUserValidation,
@@ -23,6 +24,8 @@ router.get('/test', (req, res) => {
         message: 'User routes working'
     });
 });
+
+router.get('/dashboard',protect, getDashboard);
 
 // User routes
 router.get('/', getUsers);

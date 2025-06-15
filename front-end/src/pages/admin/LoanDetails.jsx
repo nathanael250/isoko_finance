@@ -31,6 +31,8 @@ const LoanDetails = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedLoan, setEditedLoan] = useState({});
     const [client, setClient] = useState(null);
+    const [comments, setComments] = useState([]);
+
     const handleEditToggle = () => {
         if (isEditing) {
             setEditedLoan({});
@@ -39,6 +41,7 @@ const LoanDetails = () => {
         }
         setIsEditing(!isEditing);
     };
+
     const handleInputChange = (field, value) => {
         setEditedLoan(prev => ({
             ...prev,
@@ -76,6 +79,7 @@ const LoanDetails = () => {
                 console.log('Loan data received:', loanData);
 
                 setLoan(loanData);
+                setComments(response.data.data.comments || []);
 
                 // Set client data from the same response
                 const clientData = {
@@ -152,7 +156,8 @@ const LoanDetails = () => {
     const tabs = [
         { id: 'schedule', label: 'Repayment Schedule', icon: Calendar },
         { id: 'repayments', label: 'Payment History', icon: CreditCard },
-        { id: 'documents', label: 'Documents', icon: FileText }
+        { id: 'documents', label: 'Documents', icon: FileText },
+        { id: 'comments', label: 'Comments', icon: FileText }
     ];
 
     if (loading) {
@@ -559,6 +564,7 @@ const LoanDetails = () => {
                         {activeTab === 'schedule' && <ScheduleTab loanId={id} />}
                         {activeTab === 'repayments' && <RepaymentsTab loanId={id} />}
                         {activeTab === 'documents' && <DocumentsTab loanId={id} />}
+                        {activeTab === 'comments' && <CommentsTab loanId={id} comments={comments} fetchLoanDetails={fetchLoanDetails} />}
                     </div>
                 </div>
             </div>
@@ -1268,6 +1274,145 @@ const DocumentsTab = ({ loanId }) => {
                     </div>
                 </>
             )}
+        </div>
+    );
+};
+
+// New CommentsTab component
+const CommentsTab = ({ loanId, comments, fetchLoanDetails }) => {
+    const [newComment, setNewComment] = useState('');
+    const [commentType, setCommentType] = useState('general');
+    const [isInternal, setIsInternal] = useState(true);
+    const [priority, setPriority] = useState('medium');
+    const [addingComment, setAddingComment] = useState(false);
+
+    const handleAddComment = async (e) => {
+        e.preventDefault();
+        setAddingComment(true);
+        try {
+            await loansAPI.addComment(loanId, {
+                comment: newComment,
+                comment_type: commentType,
+                is_internal: isInternal,
+                priority: priority
+            });
+            setNewComment('');
+            setCommentType('general');
+            setIsInternal(true);
+            setPriority('medium');
+            fetchLoanDetails(); // Refresh comments after adding
+            alert('Comment added successfully!');
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            alert('Failed to add comment.');
+        } finally {
+            setAddingComment(false);
+        }
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        } catch (error) {
+            return 'N/A';
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            {/* Add New Comment Form */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Comment</h3>
+                <form onSubmit={handleAddComment} className="space-y-4">
+                    <div>
+                        <label htmlFor="newComment" className="block text-sm font-medium text-gray-700">Comment</label>
+                        <textarea
+                            id="newComment"
+                            rows="3"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                        ></textarea>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="commentType" className="block text-sm font-medium text-gray-700">Comment Type</label>
+                            <select
+                                id="commentType"
+                                value={commentType}
+                                onChange={(e) => setCommentType(e.target.value)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="general">General</option>
+                                <option value="loan_officer_note">Loan Officer Note</option>
+                                <option value="client_interaction">Client Interaction</option>
+                                <option value="approval_decision">Approval Decision</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="priority" className="block text-sm font-medium text-gray-700">Priority</label>
+                            <select
+                                id="priority"
+                                value={priority}
+                                onChange={(e) => setPriority(e.target.value)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex items-center">
+                        <input
+                            id="isInternal"
+                            type="checkbox"
+                            checked={isInternal}
+                            onChange={(e) => setIsInternal(e.target.checked)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="isInternal" className="ml-2 block text-sm text-gray-900">Internal Comment (not visible to client)</label>
+                    </div>
+                    <button
+                        type="submit"
+                        className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        disabled={addingComment}
+                    >
+                        {addingComment ? 'Adding...' : 'Add Comment'}
+                    </button>
+                </form>
+            </div>
+
+            {/* Existing Comments List */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Comments History</h3>
+                {comments.length === 0 ? (
+                    <p className="text-gray-500">No comments yet.</p>
+                ) : (
+                    <div className="space-y-4">
+                        {comments.map((comment) => (
+                            <div key={comment.id} className="border-b border-gray-200 pb-4 last:border-b-0">
+                                <div className="flex justify-between items-center text-sm text-gray-500">
+                                    <span>
+                                        {comment.created_by_name} {comment.created_by_lastname} • {formatDate(comment.created_at)}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${comment.is_internal ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {comment.is_internal ? 'Internal' : 'Public'}
+                                    </span>
+                                </div>
+                                <p className="mt-2 text-gray-800 text-sm">{comment.comment}</p>
+                                <div className="flex text-xs text-gray-600 mt-1 space-x-2">
+                                    <span>Type: {comment.comment_type}</span>
+                                    <span>Priority: {comment.priority}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

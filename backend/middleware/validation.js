@@ -529,7 +529,7 @@ const validateLoanType = [
         .isArray()
         .withMessage('Allowed frequencies must be an array')
         .custom((value) => {
-            const validFrequencies = ['daily', 'weekly', 'bi_weekly', 'monthly', 'quarterly'];
+            const validFrequencies = ['daily', 'weekly', 'bi_weekly', 'monthly', 'quarterly', 'lump_sum'];
             if (value && Array.isArray(value)) {
                 for (const freq of value) {
                     if (!validFrequencies.includes(freq)) {
@@ -542,7 +542,7 @@ const validateLoanType = [
 
     body('default_frequency')
         .optional()
-        .isIn(['daily', 'weekly', 'bi_weekly', 'monthly', 'quarterly'])
+        .isIn(['daily', 'weekly', 'bi_weekly', 'monthly', 'quarterly', 'lump_sum'])
         .withMessage('Default frequency must be valid'),
 
     body('allowed_collateral_types')

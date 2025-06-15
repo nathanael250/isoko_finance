@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
+const User = require('./User'); // Import the User model
 
 const defineLoanTypeModel = (sequelize) => {
     const LoanType = sequelize.define('LoanType', {
@@ -266,12 +267,14 @@ const defineLoanTypeModel = (sequelize) => {
         // Audit fields
         created_by: {
             type: DataTypes.INTEGER,
-            allowNull: true
+            allowNull: true,
+            references: { model: 'users', key: 'id' }, // Assuming 'users' is your User table name
         },
         updated_by: {
             type: DataTypes.INTEGER,
-            allowNull: true
-        }
+            allowNull: true,
+            references: { model: 'users', key: 'id' },
+        },
     }, {
         tableName: 'loan_types',
         timestamps: true,
@@ -292,6 +295,19 @@ const defineLoanTypeModel = (sequelize) => {
                 fields: ['is_active', 'is_visible_to_clients']
             }
         ]
+    });
+
+    // Define associations
+    LoanType.belongsTo(User, {
+        as: 'creator',
+        foreignKey: 'created_by',
+        onDelete: 'SET NULL',
+    });
+
+    LoanType.belongsTo(User, {
+        as: 'updater',
+        foreignKey: 'updated_by',
+        onDelete: 'SET NULL',
     });
 
     // Instance methods

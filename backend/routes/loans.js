@@ -13,7 +13,8 @@ const {
   getLoanRepayments,
   getLoanSchedule,
   getLoanDocuments,
-  uploadLoanDocument
+  uploadLoanDocument,
+  getMyLoans
 } = require('../controllers/loanController');
 
 // Import middleware
@@ -68,6 +69,16 @@ router.post('/', protect, createLoanValidation, createLoan);
 // @access  Private
 router.get('/', protect, getLoans);
 
+// @route   GET /api/loans/my-loans
+// @desc    Get loans assigned to or created by the authenticated loan officer
+// @access  Private (Loan Officer)
+router.get('/my-loans', protect, getMyLoans);
+
+// @route   GET /api/loans/client/:clientId
+// @desc    Get all loans for a specific client
+// @access  Private
+router.get('/client/:clientId', protect, getLoansByClient);
+
 // @route   GET /api/loans/:id
 // @desc    Get single loan by ID
 // @access  Private
@@ -77,11 +88,6 @@ router.get('/:id', protect, getLoan);
 // @desc    Update loan status (approve, reject, disburse, etc.)
 // @access  Private (Supervisors, Admins)
 router.put('/:id/status', protect, updateLoanStatusValidation, updateLoanStatus);
-
-// @route   GET /api/loans/client/:clientId
-// @desc    Get all loans for a specific client
-// @access  Private
-router.get('/client/:clientId', protect, getLoansByClient);
 
 // @route   POST /api/loans/calculate
 // @desc    Calculate loan details (installments, interest, etc.)

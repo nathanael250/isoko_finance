@@ -28,15 +28,17 @@ const createLoan = async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             await transaction.rollback();
+            console.log('Validation errors:', errors.array());
             return res.status(400).json({
                 success: false,
                 message: 'Validation failed',
-                errors: errors.array()
+                errors: errors.array(),
+                requestBody: req.body // Log the request body for debugging
             });
         }
 
         console.log('💰 Loan application request received');
-        console.log('Request body:', req.body);
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
         console.log('User from req:', req.user);
 
         const {
@@ -167,7 +169,7 @@ const createLoan = async (req, res) => {
         console.log('🔍 All replacement values:', replacementValues);
 
         // Create loan using raw query - FIXED: Use type: QueryTypes.INSERT
-        const [result, metadata] = await sequelize.query(`
+        await sequelize.query(`
             INSERT INTO loans (
                 loan_number, 
                 loan_account, 
@@ -205,86 +207,50 @@ const createLoan = async (req, res) => {
             type: sequelize.QueryTypes.INSERT
         });
 
-        // Get the loan ID - FIXED: Use result directly for INSERT queries
-        const loanId = result;
-        console.log('✅ Loan created with ID:', loanId);
+        // Get the loan ID by querying the loan number
+        const [createdLoan] = await sequelize.query(`
+            SELECT id FROM loans WHERE loan_number = ?
+        `, { replacements: [loan_number], transaction });
 
-        // Alternative method if above doesn't work - get the loan by loan_number
-        if (!loanId) {
-            const [createdLoan] = await sequelize.query(`
-                SELECT id FROM loans WHERE loan_number = ?
-            `, { replacements: [loan_number], transaction });
+        if (createdLoan.length === 0) {
+            await transaction.rollback();
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to create loan - could not retrieve loan ID'
+            });
+        }
 
-            if (createdLoan.length === 0) {
-                await transaction.rollback();
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to create loan - could not retrieve loan ID'
-                });
-            }
+        const loanId = createdLoan[0].id;
+        console.log('✅ Retrieved loan ID:', loanId);
 
-            const actualLoanId = createdLoan[0].id;
-            console.log('✅ Retrieved loan ID:', actualLoanId);
-
-            // Save loan schedule using the retrieved ID
-            console.log('💾 Saving loan schedule...');
-            for (const scheduleItem of loanDetails.schedule) {
-                await sequelize.query(`
-                    INSERT INTO loan_schedules (
-                        loan_id, 
-                        installment_number, 
-                        due_date, 
-                        principal_due, 
-                        interest_due, 
-                        total_due, 
-                        balance_after,
-                        status,
-                        created_at, 
-                        updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
-                `, {
-                    replacements: [
-                        actualLoanId,
-                        scheduleItem.installment_number,
-                        scheduleItem.due_date,
-                        scheduleItem.principal_due,
-                        scheduleItem.interest_due,
-                        scheduleItem.total_due,
-                        scheduleItem.balance_after
-                    ],
-                    transaction
-                });
-            }
-        } else {
-            // Save loan schedule using the direct ID
-            console.log('💾 Saving loan schedule...');
-            for (const scheduleItem of loanDetails.schedule) {
-                await sequelize.query(`
-                    INSERT INTO loan_schedules (
-                        loan_id, 
-                        installment_number, 
-                        due_date, 
-                        principal_due, 
-                        interest_due, 
-                        total_due, 
-                        balance_after,
-                        status,
-                        created_at, 
-                        updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
-                `, {
-                    replacements: [
-                        loanId,
-                        scheduleItem.installment_number,
-                        scheduleItem.due_date,
-                        scheduleItem.principal_due,
-                        scheduleItem.interest_due,
-                        scheduleItem.total_due,
-                        scheduleItem.balance_after
-                    ],
-                    transaction
-                });
-            }
+        // Save loan schedule using the retrieved ID
+        console.log('💾 Saving loan schedule...');
+        for (const scheduleItem of loanDetails.schedule) {
+            await sequelize.query(`
+                INSERT INTO loan_schedules (
+                    loan_id, 
+                    installment_number, 
+                    due_date, 
+                    principal_due, 
+                    interest_due, 
+                    total_due, 
+                    balance_after,
+                    status,
+                    created_at, 
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
+            `, {
+                replacements: [
+                    loanId,
+                    scheduleItem.installment_number,
+                    scheduleItem.due_date,
+                    scheduleItem.principal_due,
+                    scheduleItem.interest_due,
+                    scheduleItem.total_due,
+                    scheduleItem.balance_after
+                ],
+                transaction
+            });
         }
 
         // Get the created loan with client details
@@ -345,10 +311,23 @@ const getLoanRepayments = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Use the existing repayments table structure from your repaymentController
         const [repayments] = await sequelize.query(`
             SELECT 
-                r.*,
+                r.id,
+                r.loan_id,
+                r.schedule_id,
+                r.receipt_number,
+                r.payment_date,
+                r.amount_paid,
+                r.principal_paid,
+                r.interest_paid,
+                r.penalty_paid,
+                r.payment_method,
+                r.reference_number,
+                r.notes,
+                r.status,
+                r.created_at,
+                r.updated_at,
                 u.first_name as received_by_first_name,
                 u.last_name as received_by_last_name
             FROM repayments r
@@ -372,6 +351,7 @@ const getLoanRepayments = async (req, res) => {
         });
     }
 };
+
 
 // @desc    Get loan repayment schedule
 // @route   GET /api/loans/:id/schedule
@@ -671,152 +651,82 @@ const getLoans = async (req, res) => {
             whereClause = ' WHERE ' + conditions.join(' AND ');
         }
 
+        console.log('getLoans - Final WHERE clause:', whereClause);
+        console.log('getLoans - Final REPLACEMENTS:', replacements);
+
         // Get total count
         const [countResult] = await sequelize.query(
-            `SELECT COUNT(*) as total FROM loans l JOIN clients c ON l.client_id = c.id${whereClause}`,
+            `SELECT COUNT(*) as total FROM loans l LEFT JOIN clients c ON l.client_id = c.id${whereClause}`,
             { replacements }
         );
 
-        const total = countResult[0].total;
+        const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
 
-        // Get loans with comprehensive details and calculations
-        const [loans] = await sequelize.query(`
+        // Get loans data - Using only existing columns
+        const loansReplacements = [...replacements];
+        const loansResult = await sequelize.query(`
             SELECT 
-                l.*,
-                c.first_name as client_first_name,
-                c.last_name as client_last_name,
-                c.client_number,
-                c.gender as client_gender,
-                c.mobile as client_mobile,
+                l.id, l.loan_number, l.loan_account, l.status, 
+                l.applied_amount, l.approved_amount, l.disbursed_amount,
+                l.interest_rate, l.interest_rate_method, l.loan_term_months,
+                l.repayment_frequency, l.installment_amount, l.total_installments,
+                l.installments_outstanding, l.installments_paid, l.installments_in_arrears,
+                l.loan_balance, l.principal_balance, l.interest_balance,
+                l.arrears_principal, l.arrears_interest,
+                l.performance_class, l.days_in_arrears, l.arrears_start_date,
+                l.maturity_date, l.created_at, l.updated_at,
+                l.last_payment_date, l.first_payment_date,
+                l.loan_officer_id, l.branch, l.loan_purpose, l.economic_sector,
+                l.collateral_type, l.collateral_description, l.collateral_value,
+                l.application_date, l.approval_date, l.disbursement_date,
+                l.approved_by, l.disbursed_by, l.notes,
+                c.first_name AS client_first_name, c.last_name AS client_last_name, 
+                c.client_number, c.gender as client_gender, c.mobile as client_mobile,
                 c.email as client_email,
-                u.first_name as officer_first_name,
-                u.last_name as officer_last_name,
-                u.employee_id as officer_employee_id,
-                u2.first_name as approved_by_first_name,
-                u2.last_name as approved_by_last_name,
-                
-                -- Calculate principal (use disbursed_amount, then approved_amount, then applied_amount)
-                COALESCE(l.disbursed_amount, l.approved_amount, l.applied_amount, 0) as principal,
-                
-                -- Calculate total due based on interest calculation method
-                CASE 
-                    WHEN l.interest_rate_method = 'flat' THEN 
-                        COALESCE(l.disbursed_amount, l.approved_amount, l.applied_amount, 0) + 
-                        (COALESCE(l.disbursed_amount, l.approved_amount, l.applied_amount, 0) * l.interest_rate * l.loan_term_months / 100 / 12)
-                    ELSE 
-                        -- For reducing balance, use installment_amount * total_installments if available
-                        COALESCE(l.installment_amount * l.total_installments, 
-                                COALESCE(l.disbursed_amount, l.approved_amount, l.applied_amount, 0))
-                END as total_due,
-                
-                -- Calculate amount paid (total_installments - installments_outstanding) * installment_amount
-                COALESCE(
-                    (l.total_installments - l.installments_outstanding) * l.installment_amount,
-                    0
-                ) as total_paid,
-                
-                -- Calculate balance
-                COALESCE(l.loan_balance, l.principal_balance, 
-                    COALESCE(l.disbursed_amount, l.approved_amount, l.applied_amount, 0)
-                ) as balance,
-                
-                -- Last payment info (you might need to join with payments table if you have one)
-                l.last_payment_date,
-                l.installment_amount as last_payment_amount,
-                
-                -- Payment progress
-                COALESCE(l.total_installments - l.installments_outstanding, 0) as installments_paid,
-                l.total_installments,
-                l.installments_outstanding,
-                
-                -- Interest rate
-                l.interest_rate as nominal_interest_rate,
-                l.interest_rate_method as interest_calculation_method
-                
+                lt.name AS loan_type_name,
+                u1.first_name as officer_first_name, u1.last_name as officer_last_name,
+                -- Calculate derived fields
+                (COALESCE(l.principal_balance, 0) + COALESCE(l.interest_balance, 0)) as total_due,
+                (COALESCE(l.approved_amount, l.applied_amount, 0) - COALESCE(l.loan_balance, 0)) as total_paid,
+                l.loan_balance as balance,
+                -- Calculate last payment amount (this would need to come from payments table)
+                0 as last_payment_amount
             FROM loans l
-            JOIN clients c ON l.client_id = c.id
-            LEFT JOIN users u ON l.loan_officer_id = u.id
-            LEFT JOIN users u2 ON l.approved_by = u2.id
+            LEFT JOIN clients c ON l.client_id = c.id
+            LEFT JOIN loan_types lt ON l.loan_type = lt.id
+            LEFT JOIN users u1 ON l.loan_officer_id = u1.id
             ${whereClause}
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         `, {
-            replacements: [...replacements, parseInt(limit), parseInt(offset)]
+            replacements: [...loansReplacements, parseInt(limit), parseInt(offset)],
+            type: sequelize.QueryTypes.SELECT
         });
 
-        // Process loans to ensure proper data types and add calculated fields
-        const processedLoans = loans.map(loan => {
-            const principal = parseFloat(loan.principal || 0);
-            const interestRate = parseFloat(loan.nominal_interest_rate || 0);
-            const termMonths = parseInt(loan.loan_term_months || 0);
-            const installmentAmount = parseFloat(loan.installment_amount || 0);
-            const totalInstallments = parseInt(loan.total_installments || 0);
-            const installmentsPaid = parseInt(loan.installments_paid || 0);
-
-            // Recalculate total_due if needed
-            let totalDue = parseFloat(loan.total_due || 0);
-            if (totalDue === 0 && principal > 0 && interestRate > 0 && termMonths > 0) {
-                if (loan.interest_calculation_method === 'flat') {
-                    const totalInterest = (principal * interestRate * termMonths) / (100 * 12);
-                    totalDue = principal + totalInterest;
-                } else {
-                    // Reducing balance
-                    const monthlyRate = interestRate / 100 / 12;
-                    if (monthlyRate > 0) {
-                        const monthlyPayment = (principal * monthlyRate * Math.pow(1 + monthlyRate, termMonths)) /
-                            (Math.pow(1 + monthlyRate, termMonths) - 1);
-                        totalDue = monthlyPayment * termMonths;
-                    }
-                }
-            }
-
-            // Calculate total paid
-            let totalPaid = parseFloat(loan.total_paid || 0);
-            if (totalPaid === 0 && installmentAmount > 0 && installmentsPaid > 0) {
-                totalPaid = installmentAmount * installmentsPaid;
-            }
-
-            // Calculate balance
-            let balance = parseFloat(loan.balance || 0);
-            if (balance === 0 || balance === principal) {
-                balance = totalDue - totalPaid;
-            }
-
-            return {
-                ...loan,
-                id: parseInt(loan.id),
-                principal: principal,
-                total_due: totalDue,
-                total_paid: totalPaid,
-                balance: Math.max(0, balance), // Ensure balance is not negative
-                nominal_interest_rate: interestRate,
-                loan_term_months: termMonths,
-                installment_amount: installmentAmount,
-                total_installments: totalInstallments,
-                installments_paid: installmentsPaid,
-                installments_outstanding: parseInt(loan.installments_outstanding || 0),
-                days_in_arrears: parseInt(loan.days_in_arrears || 0),
-                // Format client name
-                client_name: `${loan.client_first_name || ''} ${loan.client_last_name || ''}`.trim(),
-                // Format dates
-                last_payment_date: loan.last_payment_date,
-                disbursement_date: loan.disbursement_date,
-                application_date: loan.application_date,
-                maturity_date: loan.maturity_date
-            };
-        });
+        const loans = Array.isArray(loansResult) ? loansResult : [loansResult].filter(Boolean);
+        
+        console.log('Loans fetched:', loans.length);
+        if (loans.length > 0) {
+            console.log('Sample loan data:', {
+                id: loans[0].id,
+                loan_number: loans[0].loan_number,
+                interest_rate: loans[0].interest_rate,
+                status: loans[0].status,
+                client_name: `${loans[0].client_first_name} ${loans[0].client_last_name}`
+            });
+        }
 
         const totalPages = Math.ceil(total / parseInt(limit));
 
         res.status(200).json({
             success: true,
             data: {
-                loans: processedLoans,
+                loans: loans,
                 pagination: {
-                    page: parseInt(page),
-                    limit: parseInt(limit),
                     total,
-                    pages: totalPages
+                    pages: totalPages,
+                    currentPage: parseInt(page),
+                    limit: parseInt(limit)
                 }
             }
         });
@@ -830,7 +740,6 @@ const getLoans = async (req, res) => {
         });
     }
 };
-
 
 
 const getLoan = async (req, res) => {
@@ -991,7 +900,14 @@ const getLoansByClient = async (req, res) => {
 
         const [loans] = await sequelize.query(`
             SELECT 
-                l.*,
+                l.id, l.loan_number, l.status, l.created_at, l.updated_at,
+                l.applied_amount, l.approved_amount, l.loan_type, l.interest_rate,
+                l.loan_term, l.repayment_frequency, l.loan_purpose, l.collateral_type,
+                l.collateral_value, l.guarantor_name, l.guarantor_phone, l.guarantor_address,
+                l.notes, l.approved_at, l.disbursed_at, l.maturity_date,
+                l.last_payment_date, l.next_due_date, l.principal_balance, l.interest_balance,
+                l.loan_balance, l.total_paid_amount as amount_paid, l.total_due_amount, l.penalty_amount,
+                l.due_fees,
                 u1.first_name as officer_first_name,
                 u1.last_name as officer_last_name,
                 u2.first_name as approved_by_first_name,
@@ -1065,87 +981,254 @@ const calculateLoanDetails = async (req, res) => {
 const updateLoanPerformance = async (req, res) => {
     try {
         const { id } = req.params;
+        const { performance_class, days_in_arrears, arrears_start_date } = req.body;
 
-        // Get current loan details
-        const [loans] = await sequelize.query(
-            'SELECT * FROM loans WHERE id = ? AND status IN (?, ?)',
-            { replacements: [id, 'active', 'disbursed'] }
-        );
+        // Basic validation
+        if (!performance_class) {
+            return res.status(400).json({ success: false, message: 'Performance class is required.' });
+        }
 
-        if (loans.length === 0) {
-            return res.status(404).json({
+        const [result] = await sequelize.query(`
+            UPDATE loans SET
+                performance_class = ?,
+                days_in_arrears = ?,
+                arrears_start_date = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        `, {
+            replacements: [performance_class, days_in_arrears || null, arrears_start_date || null, id]
+        });
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Loan not found or no changes made.' });
+        }
+
+        res.status(200).json({ success: true, message: 'Loan performance updated successfully.' });
+
+    } catch (error) {
+        console.error('Update loan performance error:', error);
+        res.status(500).json({ success: false, message: 'Error updating loan performance.', error: error.message });
+    }
+};
+
+const getMyLoans = async (req, res) => {
+    console.log('getMyLoans function called');
+    console.log('Request user:', req.user);
+    console.log('Request query:', req.query);
+    
+    try {
+        const { userId } = req.user;
+        console.log('User ID from request:', userId);
+
+        if (!userId) {
+            return res.status(400).json({
                 success: false,
-                message: 'Active loan not found'
+                message: 'User ID not found in request'
             });
         }
 
-        const loan = loans[0];
-        const today = new Date();
-        const maturityDate = new Date(loan.maturity_date);
+        const {
+            page = 1,
+            limit = 10,
+            status,
+            loan_type_id,
+            min_amount,
+            max_amount,
+            sort_by = 'created_at',
+            sort_order = 'DESC',
+            search
+        } = req.query;
 
-        // Calculate days in arrears
-        let daysInArrears = 0;
-        let performanceClass = 'performing';
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+        let whereClause = `WHERE l.loan_officer_id = ?`;
+        let replacements = [userId];
 
-        if (today > maturityDate) {
-            daysInArrears = Math.floor((today - maturityDate) / (1000 * 60 * 60 * 24));
+        // Build dynamic where clause
+        if (status) {
+            whereClause += ` AND l.status = ?`;
+            replacements.push(status);
+        }
+        if (loan_type_id) {
+            whereClause += ` AND l.loan_type = ?`;
+            replacements.push(parseInt(loan_type_id));
+        }
+        if (min_amount) {
+            whereClause += ` AND (COALESCE(l.approved_amount, l.applied_amount, 0) >= ?)`;
+            replacements.push(parseFloat(min_amount));
+        }
+        if (max_amount) {
+            whereClause += ` AND (COALESCE(l.approved_amount, l.applied_amount, 0) <= ?)`;
+            replacements.push(parseFloat(max_amount));
+        }
+        if (search) {
+            whereClause += ` AND (
+                c.first_name LIKE ? OR 
+                c.last_name LIKE ? OR 
+                l.loan_number LIKE ? OR
+                l.loan_account LIKE ?
+            )`;
+            const searchTerm = `%${search}%`;
+            replacements.push(searchTerm, searchTerm, searchTerm, searchTerm);
         }
 
-        // Determine performance classification based on days in arrears
-        if (daysInArrears === 0) {
-            performanceClass = 'performing';
-        } else if (daysInArrears <= 30) {
-            performanceClass = 'watch';
-        } else if (daysInArrears <= 90) {
-            performanceClass = 'substandard';
-        } else if (daysInArrears <= 180) {
-            performanceClass = 'doubtful';
-        } else {
-            performanceClass = 'loss';
-        }
+        console.log('SQL Where clause:', whereClause);
+        console.log('SQL Replacements:', replacements);
 
-        // Update loan performance
-        const updateFields = [
-            'days_in_arrears = ?',
-            'performance_class = ?',
-            'updated_at = NOW()'
+        // Get total count first
+        const countSql = `
+            SELECT COUNT(l.id) AS total
+            FROM loans l
+            LEFT JOIN clients c ON l.client_id = c.id
+            ${whereClause}
+        `;
+
+        const [countResult] = await sequelize.query(countSql, {
+            replacements,
+            type: sequelize.QueryTypes.SELECT
+        });
+
+        const total = countResult && countResult.length > 0 ? parseInt(countResult[0].total) : 0;
+        const totalPages = Math.ceil(total / parseInt(limit));
+        
+        console.log('Total loans found:', total);
+        console.log('Total pages:', totalPages);
+
+        // Validate sort parameters
+        const allowedSortFields = [
+            'created_at', 'updated_at', 'loan_number', 'applied_amount', 
+            'approved_amount', 'status', 'maturity_date'
         ];
-        const replacements = [daysInArrears, performanceClass];
+        const sortBy = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
+        const sortOrder = ['ASC', 'DESC'].includes(sort_order.toUpperCase()) ? sort_order.toUpperCase() : 'DESC';
 
-        // Set arrears start date if not already set and loan is in arrears
-        if (daysInArrears > 0 && !loan.arrears_start_date) {
-            updateFields.push('arrears_start_date = ?');
-            const arrearsStartDate = new Date(maturityDate);
-            arrearsStartDate.setDate(arrearsStartDate.getDate() + 1);
-            replacements.push(arrearsStartDate.toISOString().split('T')[0]);
+        // Main query with correct column name
+        const loansSql = `
+            SELECT 
+                l.id, 
+                l.loan_number, 
+                l.loan_account, 
+                l.status, 
+                l.applied_amount, 
+                l.approved_amount, 
+                l.disbursed_amount,
+                l.interest_rate, 
+                l.interest_rate_method, 
+                l.loan_term_months,
+                l.repayment_frequency, 
+                l.installment_amount, 
+                l.total_installments,
+                l.installments_outstanding, 
+                COALESCE(l.installments_paid, 0) as installments_paid, 
+                COALESCE(l.installments_in_arrears, 0) as installments_in_arrears,
+                COALESCE(l.loan_balance, 0) as loan_balance, 
+                COALESCE(l.principal_balance, 0) as principal_balance, 
+                COALESCE(l.interest_balance, 0) as interest_balance,
+                COALESCE(l.arrears_principal, 0) as arrears_principal, 
+                COALESCE(l.arrears_interest, 0) as arrears_interest,
+                l.performance_class, 
+                COALESCE(l.days_in_arrears, 0) as days_in_arrears, 
+                l.arrears_start_date,
+                l.maturity_date, 
+                l.created_at, 
+                l.updated_at,
+                l.last_payment_date, 
+                l.first_payment_date,
+                l.loan_officer_id, 
+                l.branch, 
+                l.loan_purpose, 
+                l.economic_sector,
+                l.collateral_type, 
+                l.collateral_description, 
+                l.collateral_value,
+                l.application_date, 
+                l.approval_date, 
+                l.disbursement_date,
+                l.approved_by, 
+                l.disbursed_by, 
+                l.notes,
+                -- Client information
+                COALESCE(c.first_name, '') AS client_first_name, 
+                COALESCE(c.last_name, '') AS client_last_name, 
+                c.client_number, 
+                c.gender as client_gender, 
+                c.mobile as client_mobile,
+                c.email as client_email,
+                -- Loan type information
+                COALESCE(lt.name, 'Unknown') AS loan_type_name,
+                -- Officer information
+                COALESCE(u1.first_name, '') as officer_first_name, 
+                COALESCE(u1.last_name, '') as officer_last_name,
+                -- Calculate derived fields safely
+                (COALESCE(l.principal_balance, 0) + COALESCE(l.interest_balance, 0)) as total_due,
+                (COALESCE(l.applied_amount, 0) - COALESCE(l.loan_balance, 0)) as total_paid,
+                COALESCE(l.loan_balance, 0) as balance,
+                -- Get last payment amount using correct column name
+                (SELECT r.amount_paid FROM repayments r 
+                 WHERE r.loan_id = l.id 
+                 ORDER BY r.payment_date DESC, r.created_at DESC 
+                 LIMIT 1) as last_payment_amount
+            FROM loans l
+            LEFT JOIN clients c ON l.client_id = c.id
+            LEFT JOIN loan_types lt ON l.loan_type = lt.id
+            LEFT JOIN users u1 ON l.loan_officer_id = u1.id
+            ${whereClause}
+            ORDER BY l.${sortBy} ${sortOrder}
+            LIMIT ? OFFSET ?
+        `;
+
+        const finalReplacements = [...replacements, parseInt(limit), offset];
+        
+        console.log('Executing loans SQL with correct column name');
+
+        const loansResult = await sequelize.query(loansSql, {
+            replacements: finalReplacements,
+            type: sequelize.QueryTypes.SELECT
+        });
+
+        const loans = Array.isArray(loansResult) ? loansResult : [];
+        console.log('Loans fetched successfully:', loans.length);
+
+        if (loans.length > 0) {
+            console.log('Sample loan data:', {
+                id: loans[0].id,
+                loan_number: loans[0].loan_number,
+                interest_rate: loans[0].interest_rate,
+                status: loans[0].status,
+                client_name: `${loans[0].client_first_name} ${loans[0].client_last_name}`,
+                total_due: loans[0].total_due,
+                total_paid: loans[0].total_paid,
+                balance: loans[0].balance,
+                last_payment_amount: loans[0].last_payment_amount
+            });
         }
-
-        replacements.push(id);
-
-        await sequelize.query(
-            `UPDATE loans SET ${updateFields.join(', ')} WHERE id = ?`,
-            { replacements }
-        );
 
         res.status(200).json({
             success: true,
-            message: 'Loan performance updated successfully',
             data: {
-                loan_id: id,
-                days_in_arrears: daysInArrears,
-                performance_class: performanceClass
+                loans,
+                pagination: {
+                    total,
+                    pages: totalPages,
+                    currentPage: parseInt(page),
+                    limit: parseInt(limit)
+                }
             }
         });
 
     } catch (error) {
-        console.error('Update loan performance error:', error);
+        console.error('Get my loans error:', error);
+        console.error('Error stack:', error.stack);
+        
         res.status(500).json({
             success: false,
-            message: 'Error updating loan performance',
-            error: error.message
+            message: 'Error fetching loans for loan officer',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
         });
     }
 };
+
+
+
 
 module.exports = {
     createLoan,
@@ -1155,8 +1238,9 @@ module.exports = {
     getLoansByClient,
     calculateLoanDetails,
     updateLoanPerformance,
-    getLoanSchedule,
     getLoanRepayments,
+    getLoanSchedule,
     getLoanDocuments,
-    uploadLoanDocument
+    uploadLoanDocument,
+    getMyLoans
 };

@@ -3,20 +3,30 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prevState => ({
+      ...prevState,
+      [name]: value
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    const result = await login(email, password);
+    const result = await login(formData.email, formData.password);
     
     if (result.success) {
       // Redirect based on user role
@@ -28,12 +38,10 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  // Quick login function for testing
-  
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl overflow-hidden max-w-4xl w-full flex">
+        {/* Left Panel - Branding */}
         <div className="bg-[#00509E] flex-1 p-12 flex flex-col justify-center items-center text-white relative rounded-[0px_200px_0px_0px]">
           <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full"></div>
 
@@ -49,12 +57,12 @@ export default function LoginPage() {
 
         {/* Right Panel - Form */}
         <div className="flex-1 p-12 flex flex-col justify-center relative overflow-hidden">
-          <svg className="absolute top-0 right-[-10px] w-100 h-100" viewBox="0 0 1400 1400">
+          <svg className="absolute top-0 right-[-10px] w-100 h-100 -z-10" viewBox="0 0 1400 1400">
             <path fill="#00509E" d="M953.5,1.5c47.76,10.65,159.86,42.34,262,141c102.16,98.68,137.71,209.64,150,257c0-132.67,0-265.33,0-398
     C1228.17,1.5,1090.83,1.5,953.5,1.5z"/>
           </svg>
 
-          <div className="max-w-sm mx-auto w-full z-100">
+          <div className="max-w-sm mx-auto w-full relative z-10">
             <h2 className="text-4xl text-center font-bold text-[#00509E] mb-2">welcome</h2>
             <p className="text-center mb-8">Log into your account to continue</p>
 
@@ -68,9 +76,10 @@ export default function LoginPage() {
               <div>
                 <input
                   type="email"
+                  name="email"
                   placeholder="Email................"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={formData.email}
+                  onChange={handleChange}
                   className="w-full px-6 py-4 bg-blue-100 bg-opacity-60 rounded-full border-none focus:outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-500 text-gray-700"
                   required
                 />
@@ -79,9 +88,10 @@ export default function LoginPage() {
               <div>
                 <input
                   type="password"
+                  name="password"
                   placeholder="Password................"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={formData.password}
+                  onChange={handleChange}
                   className="w-full px-6 py-4 bg-blue-100 bg-opacity-60 rounded-full border-none focus:outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-500 text-gray-700"
                   required
                 />

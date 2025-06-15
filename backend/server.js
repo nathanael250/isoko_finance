@@ -28,6 +28,8 @@ const loanCalculatorRouter = require('./routes/loanCalculator');
 const guarantorRoutes = require('./routes/guarantors');
 const dashboardRoutes = require('./routes/dashboard');
 const noRepaymentRoutes = require('./routes/noRepayment');
+const loanOfficerRoutes = require('./routes/loanOfficerRoutes');
+const cashierRoutes = require('./routes/cashierRoutes');
 
 
 // Connect to database
@@ -55,8 +57,12 @@ app.use('/api/', limiter);
 
 // CORS configuration
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 }));
 
 // Body parsing middleware
@@ -88,6 +94,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/clients', clientRoutes); // Temporarily commented out
 app.use('/api/loans', loanRoutes);
 app.use('/api/loans', loanDetailsRoutes);
+app.use('/api/loan-types', loanTypeRoutes);
 app.use('/api/repayments', repaymentRoutes);
 app.use('/api/due-loans', dueLoansRoutes);
 app.use('/api/missed-repayments', missedRepaymentsRoutes);
@@ -98,6 +105,8 @@ app.use('/api/loan-calculator', loanCalculatorRouter);
 app.use('/api/guarantors', guarantorRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/no-repayment', noRepaymentRoutes);
+app.use('/api/loan-officer', loanOfficerRoutes);
+app.use('/api/cashier', cashierRoutes);
 
 
 // 404 handler for undefined routes

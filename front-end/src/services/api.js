@@ -2,12 +2,15 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const api = axios.create({
+export const api = axios.create({
     baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
 });
+
+// Add default export
+export default api;
 
 // Add auth token to requests
 api.interceptors.request.use(
@@ -76,6 +79,7 @@ export const loansAPI = {
     create: (data) => api.post('/loans', data),
     update: (id, data) => api.put(`/loans/${id}`, data),
     updateStatus: (id, data) => api.put(`/loans/${id}/status`, data),
+    getMyLoans: (params) => api.get('/loans/my-loans', { params }),
     
     // Schedule and repayment methods
     getDueLoans: (params) => {
@@ -98,6 +102,7 @@ export const loansAPI = {
             'Content-Type': 'multipart/form-data'
         }
     }),
+    getLoanTypes: (params) => api.get('/loan-types', { params }),
 };
 
 // Due Loans API
@@ -336,6 +341,33 @@ export const pastMaturityAPI = {
         });
     }
 };
+
+
+// Cashier API
+export const cashierAPI = {
+    getTodaySummary: () => api.get('/cashier/summary/today'),
+    getRecentTransactions: (params) => {
+        const cleanParams = Object.entries(params || {}).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/cashier/transactions/recent?${queryString}`);
+    },
+    getDueTodayLoans: () => api.get('/cashier/loans/due-today'),
+    
+    // Additional cashier methods you might need
+    processPayment: (paymentData) => api.post('/cashier/payments', paymentData),
+    reversePayment: (paymentId, reason) => api.put(`/cashier/payments/${paymentId}/reverse`, { reason }),
+    generateReceipt: (paymentId) => api.get(`/cashier/receipts/${paymentId}`, { responseType: 'blob' }),
+    getCashCount: () => api.get('/cashier/cash-count'),
+    submitCashCount: (cashCountData) => api.post('/cashier/cash-count', cashCountData),
+    getDailyReport: (date) => api.get(`/cashier/reports/daily?date=${date}`),
+    searchLoan: (searchTerm) => api.get(`/cashier/loans/search?q=${searchTerm}`)
+};
+
 // Loan Types API
 export const loanTypesAPI = {
     getLoanTypes: (params) => api.get('/loan-types', { params }),
@@ -347,5 +379,3 @@ export const loanTypesAPI = {
     getPerformance: () => api.get('/dashboard/performance'),
     getCharts: (type, period = 'monthly') => api.get(`/dashboard/charts/${type}?period=${period}`)
 };
-
-export default api;
