@@ -35,7 +35,6 @@ const PastMaturityDashboard = React.lazy(() => import('./pages/admin/PastMaturit
 const PrincipalOutstandingView = React.lazy(() => import('./pages/admin/PrincipalOutstandingView'));
 
 // Supervisor Pages
-const TeamOverview = React.lazy(() => import('./pages/supervisor/TeamOverview'));
 // const LoanApprovals = React.lazy(() => import('./pages/supervisor/LoanApprovals'));
 const PerformanceMetrics = React.lazy(() => import('./pages/supervisor/PerformanceMetrics'));
 
@@ -266,7 +265,7 @@ function App() {
                       <ProtectedRoute allowedRoles={['supervisor']}>
                         <Route element={<DashboardLayout />}>
                           <Route index element={<SupervisorDashboard />} />
-                          <Route path="team" element={<TeamOverview />} />
+                          
                           <Route path="metrics" element={<PerformanceMetrics />} />
                         </Route>
                       </ProtectedRoute>
