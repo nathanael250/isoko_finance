@@ -14,7 +14,7 @@ export default defineConfig({
     strictPort: true,
   },
   preview: {
-    host: '0.0.0.0',
+    host: 'isoko-finance-1.onrender.com',
     port: process.env.PORT || 5173,
     strictPort: true,
   },
