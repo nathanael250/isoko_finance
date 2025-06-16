@@ -108,12 +108,7 @@ export default function LoginPage() {
               </div>
             </form>
 
-            <p className="text-center text-gray-600 mt-6">
-              Do not have account?{' '}
-              <button className="text-blue-600 hover:text-blue-700 font-medium underline">
-                signin
-              </button>
-            </p>
+            
           </div>
         </div>
       </div>
