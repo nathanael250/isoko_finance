@@ -342,10 +342,18 @@ export const pastMaturityAPI = {
     }
 };
 
-
-// Cashier API
+// Update your existing cashierAPI section (around line 340)
 export const cashierAPI = {
-    getTodaySummary: () => api.get('/cashier/summary/today'),
+    getTodaySummary: (params) => {
+        const cleanParams = Object.entries(params || {}).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/cashier/summary/today?${queryString}`);
+    },
     getRecentTransactions: (params) => {
         const cleanParams = Object.entries(params || {}).reduce((acc, [key, value]) => {
             if (value !== '' && value !== null && value !== undefined) {
@@ -358,7 +366,30 @@ export const cashierAPI = {
     },
     getDueTodayLoans: () => api.get('/cashier/loans/due-today'),
     
-    // Additional cashier methods you might need
+    // ADD THESE MISSING METHODS:
+    getRecentPayments: (params) => {
+        const cleanParams = Object.entries(params || {}).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/cashier/payments/recent?${queryString}`);
+    },
+    searchLoans: (params) => {
+        const cleanParams = Object.entries(params || {}).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+        const queryString = new URLSearchParams(cleanParams).toString();
+        return api.get(`/cashier/loans/search?${queryString}`);
+    },
+    recordPayment: (data) => api.post('/cashier/payments/record', data),
+    
+    // Keep your existing methods
     processPayment: (paymentData) => api.post('/cashier/payments', paymentData),
     reversePayment: (paymentId, reason) => api.put(`/cashier/payments/${paymentId}/reverse`, { reason }),
     generateReceipt: (paymentId) => api.get(`/cashier/receipts/${paymentId}`, { responseType: 'blob' }),
@@ -367,6 +398,8 @@ export const cashierAPI = {
     getDailyReport: (date) => api.get(`/cashier/reports/daily?date=${date}`),
     searchLoan: (searchTerm) => api.get(`/cashier/loans/search?q=${searchTerm}`)
 };
+
+
 
 // Loan Types API
 export const loanTypesAPI = {

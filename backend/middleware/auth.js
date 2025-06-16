@@ -54,6 +54,7 @@ const authenticateToken = async (req, res, next) => {
         // Add user info to request
         req.user = {
             userId: user.id,
+            id: user.id, // Add both for compatibility
             email: user.email,
             role: user.role,
             name: `${user.first_name} ${user.last_name}`,
@@ -85,27 +86,47 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-
-
-
-const authorize = (...roles) =>{
-    return (req,res,next)=>{
-        if(!req.user){
+// Updated authorize function to handle both array and spread arguments
+const authorize = (...roles) => {
+    return (req, res, next) => {
+        if (!req.user) {
             return res.status(401).json({
                 success: false,
                 message: 'Access denied. User not authenticated.'
             });
         }
-        if(!roles.includes(req.user.role)){
+
+        // Handle both array and spread arguments
+        let allowedRoles = roles;
+        if (roles.length === 1 && Array.isArray(roles[0])) {
+            allowedRoles = roles[0];
+        }
+
+        console.log('User role:', req.user.role);
+        console.log('Allowed roles:', allowedRoles);
+
+        // Normalize roles for comparison (handle different naming conventions)
+        const normalizeRole = (role) => {
+            return role.toLowerCase().replace(/[-_]/g, '');
+        };
+
+        const userRole = normalizeRole(req.user.role);
+        const hasPermission = allowedRoles.some(role => {
+            const normalizedRole = normalizeRole(role);
+            return userRole === normalizedRole;
+        });
+
+        if (!hasPermission) {
+            console.log(`Access denied. User role '${req.user.role}' not in allowed roles: [${allowedRoles.join(', ')}]`);
             return res.status(403).json({
-                success:false,
-                message: `User role '${req.user.role}' is not authorized to access this route`
+                success: false,
+                message: `User role '${req.user.role}' is not authorized to access this route. Required roles: ${allowedRoles.join(', ')}`
             });
         }
+
         next();
     };
 };
-
 
 const authorizeOwnerOrAdmin = (req, res, next) => {
     if (!req.user) {
@@ -157,6 +178,7 @@ const optionalAuth = async (req, res, next) => {
         if (user && (!user.status || user.status === 'active')) {
             req.user = {
                 userId: user.id,
+                id: user.id, // Add both for compatibility
                 email: user.email,
                 role: user.role,
                 name: `${user.first_name} ${user.last_name}`,
@@ -177,5 +199,6 @@ module.exports = {
     authenticateToken,
     optionalAuth,
     authorize,
+    authorizeOwnerOrAdmin, // Add this export
     protect: authenticateToken // Alias for compatibility
 };

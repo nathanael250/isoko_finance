@@ -58,6 +58,10 @@ const BorrowerLoanDetails = React.lazy(() => import('./pages/loan-officer/Borrow
 const Transactions = React.lazy(() => import('./pages/cashier/Transactions'));
 const PaymentRecords = React.lazy(() => import('./pages/cashier/PaymentRecords'));
 const DailyReports = React.lazy(() => import('./pages/cashier/DailyReports'));
+const PaymentHistory = React.lazy(() => import('./pages/cashier/PaymentHistory'));
+const DueCollections = React.lazy(() => import('./pages/cashier/DueCollections'));
+const OverdueLoans = React.lazy(() => import('./pages/cashier/OverdueLoans'));
+const LoanSchedule = React.lazy(() => import('./pages/cashier/LoanSchedule'));
 
 // Shared Pages
 const ProfilePage = React.lazy(() => import('./pages/shared/ProfilePage'));
@@ -259,31 +263,12 @@ function App() {
                   <Route
                     path="supervisor"
                     element={
-                      <ProtectedRoute allowedRoles={['supervisor', 'admin']}>
-                        <React.Suspense fallback={<LoadingSpinner />}>
-                          <SupervisorDashboard />
-                        </React.Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="supervisor/team"
-                    element={
-                      <ProtectedRoute allowedRoles={['supervisor', 'admin']}>
-                        <React.Suspense fallback={<LoadingSpinner />}>
-                          <TeamOverview />
-                        </React.Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="supervisor/performance"
-                    element={
-                      <ProtectedRoute allowedRoles={['supervisor', 'admin']}>
-                        <React.Suspense fallback={<LoadingSpinner />}>
-                          <PerformanceMetrics />
-                        </React.Suspense>
+                      <ProtectedRoute allowedRoles={['supervisor']}>
+                        <Route element={<DashboardLayout />}>
+                          <Route index element={<SupervisorDashboard />} />
+                          <Route path="team" element={<TeamOverview />} />
+                          <Route path="metrics" element={<PerformanceMetrics />} />
+                        </Route>
                       </ProtectedRoute>
                     }
                   />
@@ -456,7 +441,7 @@ function App() {
                   <Route
                     path="cashier"
                     element={
-                      <ProtectedRoute allowedRoles={['cashier', 'supervisor', 'admin']}>
+                      <ProtectedRoute allowedRoles={['cashier']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <CashierDashboard />
                         </React.Suspense>
@@ -464,19 +449,9 @@ function App() {
                     }
                   />
                   <Route
-                    path="cashier/transactions"
+                    path="cashier/payment-records"
                     element={
-                      <ProtectedRoute allowedRoles={['cashier', 'supervisor', 'admin']}>
-                        <React.Suspense fallback={<LoadingSpinner />}>
-                          <Transactions />
-                        </React.Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="cashier/payments"
-                    element={
-                      <ProtectedRoute allowedRoles={['cashier', 'supervisor', 'admin']}>
+                      <ProtectedRoute allowedRoles={['cashier']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <PaymentRecords />
                         </React.Suspense>
@@ -484,11 +459,51 @@ function App() {
                     }
                   />
                   <Route
-                    path="cashier/reports"
+                    path="cashier/daily-reports"
                     element={
-                      <ProtectedRoute allowedRoles={['cashier', 'supervisor', 'admin']}>
+                      <ProtectedRoute allowedRoles={['cashier']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <DailyReports />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="cashier/payment-history"
+                    element={
+                      <ProtectedRoute allowedRoles={['cashier']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <PaymentHistory />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="cashier/due-collections"
+                    element={
+                      <ProtectedRoute allowedRoles={['cashier']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <DueCollections />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="cashier/overdue-loans"
+                    element={
+                      <ProtectedRoute allowedRoles={['cashier']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <OverdueLoans />
+                        </React.Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="cashier/loan-schedule"
+                    element={
+                      <ProtectedRoute allowedRoles={['cashier']}>
+                        <React.Suspense fallback={<LoadingSpinner />}>
+                          <LoanSchedule />
                         </React.Suspense>
                       </ProtectedRoute>
                     }
@@ -508,7 +523,7 @@ function App() {
                   <Route
                     path="receipt/:repaymentId"
                     element={
-                      <ProtectedRoute allowedRoles={['cashier', 'supervisor', 'admin']}>
+                      <ProtectedRoute allowedRoles={['cashier', 'supervisor', 'admin', 'loan_officer']}>
                         <React.Suspense fallback={<LoadingSpinner />}>
                           <ReceiptDisplay />
                         </React.Suspense>

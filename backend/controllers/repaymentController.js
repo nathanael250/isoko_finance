@@ -86,15 +86,15 @@ const recordPayment = async (req, res) => {
                 totalInterestPaid += partialInterest;
                 totalPenaltyPaid += partialPenalty;
 
-                await sequelize.query(`
-                    UPDATE loan_schedules
-                    SET 
+            await sequelize.query(`
+                UPDATE loan_schedules 
+                SET 
                         principal_paid = principal_paid + ?,
                         interest_paid = interest_paid + ?,
                         penalty_paid = penalty_paid + ?,
                         total_paid = total_paid + ?,
                         status = CASE WHEN (principal_paid + ?) >= principal_due AND (interest_paid + ?) >= interest_due AND (penalty_paid + ?) >= penalty_due THEN 'paid' ELSE 'pending' END
-                    WHERE id = ?
+                WHERE id = ?
                 `, { replacements: [partialPrincipal, partialInterest, partialPenalty, paymentAppliedToInstallment, partialPrincipal, partialInterest, partialPenalty, installment.id], type: QueryTypes.UPDATE, transaction: t });
                 installmentsPaid.push({ id: installment.id, amount_paid: paymentAppliedToInstallment, status: 'partially_paid' });
                 remainingAmount = 0;
@@ -117,7 +117,7 @@ const recordPayment = async (req, res) => {
         }
 
         await sequelize.query(`
-            UPDATE loans
+            UPDATE loans 
             SET 
                 total_paid_amount = ?,
                 total_due_amount = ?,
@@ -176,65 +176,173 @@ const getLoanRepayments = async (req, res) => {
     }
 };
 
-// Get all repayments with filters (existing function, ensure it's working)
 const getRepayments = async (req, res) => {
     try {
-        const { loanId, clientId, method, status, startDate, endDate, page = 1, limit = 10 } = req.query;
-        let query = `SELECT r.*, l.loan_number, c.first_name, c.last_name
-                     FROM repayments r
-                     JOIN loans l ON r.loan_id = l.id
-                     JOIN clients c ON l.client_id = c.id WHERE 1=1`;
+        const { 
+            loanId, 
+            clientId, 
+            method, 
+            status, 
+            startDate, 
+            endDate, 
+            page = 1, 
+            limit = 10,
+            search = '',
+            paymentMethod = ''
+        } = req.query;
+
+        console.log('getRepayments called by user:', req.user);
+        console.log('Query params:', req.query);
+
+        let query = `
+            SELECT 
+                r.id,
+                r.loan_id,
+                r.receipt_number,
+                r.amount_paid,
+                r.principal_paid,
+                r.interest_paid,
+                r.penalty_paid,
+                r.payment_method,
+                r.payment_date,
+                r.status,
+                r.notes,
+                r.received_by,
+                r.created_at,
+                r.updated_at,
+                l.loan_number,
+                l.loan_account,
+                CONCAT(c.first_name, ' ', c.last_name) as client_name,
+                c.mobile as client_mobile,
+                c.email as client_email
+            FROM repayments r
+            JOIN loans l ON r.loan_id = l.id
+            JOIN clients c ON l.client_id = c.id 
+            WHERE 1=1
+        `;
+        
         const replacements = [];
 
+        // Role-based filtering
+        if (req.user.role === 'loan-officer' || req.user.role === 'loan_officer') {
+            query += ` AND l.loan_officer_id = ?`;
+            replacements.push(req.user.userId || req.user.id);
+        }
+
+        // Apply filters
         if (loanId) {
             query += ` AND r.loan_id = ?`;
             replacements.push(loanId);
         }
+        
         if (clientId) {
             query += ` AND l.client_id = ?`;
             replacements.push(clientId);
         }
-        if (method) {
+        
+        if (method || paymentMethod) {
             query += ` AND r.payment_method = ?`;
-            replacements.push(method);
+            replacements.push(method || paymentMethod);
         }
+        
         if (status) {
             query += ` AND r.status = ?`;
             replacements.push(status);
         }
+        
         if (startDate) {
-            query += ` AND r.payment_date >= ?`;
+            query += ` AND DATE(r.payment_date) >= ?`;
             replacements.push(startDate);
         }
+        
         if (endDate) {
-            query += ` AND r.payment_date <= ?`;
+            query += ` AND DATE(r.payment_date) <= ?`;
             replacements.push(endDate);
         }
 
-        // Get total count for pagination
-        const [countResult] = await sequelize.query(`SELECT COUNT(*) as total FROM (${query}) as subquery`, { replacements });
-        const total = countResult[0].total;
+        // Search functionality
+        if (search) {
+            query += ` AND (
+                l.loan_number ILIKE ? OR 
+                l.loan_account ILIKE ? OR 
+                CONCAT(c.first_name, ' ', c.last_name) ILIKE ? OR
+                r.receipt_number ILIKE ?
+            )`;
+            const searchTerm = `%${search}%`;
+            replacements.push(searchTerm, searchTerm, searchTerm, searchTerm);
+        }
 
-        query += ` ORDER BY r.created_at DESC LIMIT ? OFFSET ?`;
+        // Get total count for pagination
+        const countQuery = query.replace(
+            /SELECT r\.id,.*?FROM/s, 
+            'SELECT COUNT(r.id) as total FROM'
+        );
+        
+        console.log('Count query:', countQuery);
+        console.log('Count replacements:', replacements);
+        
+        const [countResult] = await sequelize.query(countQuery, { 
+            replacements,
+            type: sequelize.QueryTypes.SELECT 
+        });
+        
+        const total = parseInt(countResult[0]?.total || 0);
+
+        // Add pagination and ordering
+        query += ` ORDER BY r.payment_date DESC, r.created_at DESC LIMIT ? OFFSET ?`;
         replacements.push(parseInt(limit));
         replacements.push((parseInt(page) - 1) * parseInt(limit));
 
-        const [repayments] = await sequelize.query(query, { replacements });
+        console.log('Final query:', query);
+        console.log('Final replacements:', replacements);
+
+        const repayments = await sequelize.query(query, { 
+            replacements,
+            type: sequelize.QueryTypes.SELECT 
+        });
+
+        console.log(`Found ${repayments.length} repayments out of ${total} total`);
+        console.log('Sample repayment:', repayments[0]);
+
+        // Ensure we return the correct structure
+        const responseData = {
+            repayments: Array.isArray(repayments) ? repayments : [],
+            pagination: {
+                total: total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(total / parseInt(limit)),
+                currentPage: parseInt(page)
+            }
+        };
+
+        console.log('Sending response:', responseData);
 
         res.status(200).json({
             success: true,
-            data: {
-                total,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                repayments,
-            },
+            data: responseData
         });
     } catch (error) {
         console.error('Error fetching repayments:', error);
-        res.status(500).json({ success: false, message: 'Error fetching repayments', error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error fetching repayments', 
+            error: error.message,
+            data: {
+                repayments: [],
+                pagination: {
+                    total: 0,
+                    page: 1,
+                    limit: 10,
+                    pages: 0,
+                    currentPage: 1
+                }
+            }
+        });
     }
 };
+
+
 
 // Get a single repayment by ID (existing function, ensure it's working)
 const getRepayment = async (req, res) => {

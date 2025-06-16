@@ -240,7 +240,7 @@ const CashierDashboard = () => {
                                         {dueTodayLoans.map((loan) => (
                                             <div key={loan.id} className="border rounded-lg p-4">
                                                 <div className="flex justify-between items-start">
-                                                    <div>
+        <div>
                                                         <p className="font-medium text-gray-900">{loan.client_name}</p>
                                                         <p className="text-sm text-gray-500">{loan.loan_number}</p>
                                                     </div>

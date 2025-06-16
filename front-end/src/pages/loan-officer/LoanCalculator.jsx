@@ -707,3 +707,4 @@ const LoanCalculator = () => {
 };
 
 export default LoanCalculator;
+ 

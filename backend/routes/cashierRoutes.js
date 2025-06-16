@@ -1,39 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateToken, authorize } = require('../middleware/auth');
 const { 
     getTodaySummary, 
     getRecentTransactions, 
-    getDueTodayLoans 
+    getDueTodayLoans,
+    getDueThisWeekLoans,
+    getCashierOverdueLoans,
+    // Add the new controller methods
+    getRecentPayments,
+    searchLoans,
+    recordPayment
 } = require('../controllers/cashierController');
-const { authenticateToken, authorize } = require('../middleware/auth');
 
-// Test endpoints (you can remove these later)
-router.get('/test-auth', authenticateToken, (req, res) => {
-    res.json({
-        success: true,
-        user: req.user,
-        message: 'Authentication successful'
-    });
-});
+// Apply authentication to all routes
+router.use(authenticateToken);
+router.use(authorize(['cashier', 'admin', 'supervisor']));
 
-router.get('/test-role', authenticateToken, authorize('cashier', 'admin'), (req, res) => {
-    res.json({
-        success: true,
-        user: req.user,
-        message: 'Role authorization successful'
-    });
-});
+// Existing routes
+router.get('/summary/today', getTodaySummary);
+router.get('/transactions/recent', getRecentTransactions);
+router.get('/loans/due-today', getDueTodayLoans);
+router.get('/loans/due-this-week', getDueThisWeekLoans);
+router.get('/loans/overdue', getCashierOverdueLoans);
 
-router.get('/test-simple', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Simple test successful'
-    });
-});
-
-// Dashboard data endpoints with real controllers
-router.get('/summary/today', authenticateToken, authorize('cashier', 'admin'), getTodaySummary);
-router.get('/transactions/recent', authenticateToken, authorize('cashier', 'admin'), getRecentTransactions);
-router.get('/loans/due-today', authenticateToken, authorize('cashier', 'admin'), getDueTodayLoans);
+// NEW ROUTES using controller methods
+router.get('/payments/recent', getRecentPayments);
+router.get('/loans/search', searchLoans);
+router.post('/payments/record', recordPayment);
 
 module.exports = router;
