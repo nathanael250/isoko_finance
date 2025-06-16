@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supervisorAPI } from '../../services/api';
+import supervisorAPI from '../../services/api/supervisorAPI';
 import {
   ChartBarIcon,
   CurrencyDollarIcon,
