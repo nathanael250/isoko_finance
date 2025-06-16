@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from './config';
 
 const supervisorAPI = {
   // Team Overview
@@ -26,6 +26,11 @@ const supervisorAPI = {
 
   getMonthlyStats: () => {
     return axios.get(`${API_BASE_URL}/api/supervisor/metrics/monthly`);
+  },
+
+  // Dashboard Data
+  getDashboardData: () => {
+    return axios.get(`${API_BASE_URL}/api/supervisor/dashboard`);
   },
 
   // Loan Management
