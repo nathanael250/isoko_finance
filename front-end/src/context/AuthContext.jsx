@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authService } from '../services/authService';
 
 const AuthContext = createContext();
 
@@ -40,74 +41,35 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      console.log('Making login request to:', 'http://localhost:5000/api/auth/login');
-      
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-      console.log('Response data:', data);
-
-      if (data.success && data.data) {
-        // Extract user and token from the data object
-        const { user, token } = data.data;
-        
-        console.log('Login successful, token:', token ? 'TOKEN_RECEIVED' : 'NO_TOKEN');
-        console.log('User data:', user);
-        
-        // Store token and user data
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
-        setUser(user);
-        return { success: true, user: user };
-      } else {
-        console.log('Login failed:', data.message);
-        return { success: false, message: data.message || 'Login failed' };
+      const result = await authService.login({ email, password });
+      if (result.success) {
+        setUser(result.data.user);
       }
+      return result;
     } catch (error) {
       console.error('Login error:', error);
-      return { success: false, message: 'Network error. Please try again.' };
+      return {
+        success: false,
+        message: error.message || 'Failed to login'
+      };
     }
   };
 
   const logout = async () => {
     try {
-      // Optional: Call backend logout endpoint
-      const token = localStorage.getItem('token');
-      if (token) {
-        await fetch('http://localhost:5000/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-      }
+      await authService.logout();
+      setUser(null);
     } catch (error) {
       console.error('Logout error:', error);
-    } finally {
-      // Always clear local storage and state
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setUser(null);
     }
-  };
-
-  const isAuthenticated = () => {
-    return !!user && !!localStorage.getItem('token');
   };
 
   const value = {
     user,
+    loading,
     login,
     logout,
-    isAuthenticated,
-    loading
+    isAuthenticated: !!user
   };
 
   return (
