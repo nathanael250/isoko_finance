@@ -20,7 +20,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://isoko-finance.onrender.com',
         changeOrigin: true,
         secure: false,
       },

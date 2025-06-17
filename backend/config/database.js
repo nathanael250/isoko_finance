@@ -6,95 +6,76 @@ const sequelize = new Sequelize(
     process.env.DB_PASSWORD,
     {
         host: process.env.DB_HOST,
-        port: process.env.DB_PORT,
+        port: parseInt(process.env.DB_PORT) || 3306,
         dialect: 'mysql',
         logging: process.env.NODE_ENV === 'development' ? console.log : false,
+        
         pool: {
-            max: 10,
+            max: 5,
             min: 0,
-            acquire: 30000,
+            acquire: 60000,
             idle: 10000
         },
+        
         define: {
             timestamps: true,
             underscored: true,
             freezeTableName: true
         },
-        // Add MariaDB specific options
+        
+        // Clean dialectOptions - remove invalid options
         dialectOptions: {
             charset: 'utf8mb4',
-            collate: 'utf8mb4_unicode_ci',
-            // Prevent timeout issues
-            acquireTimeout: 60000,
-            timeout: 60000
+            ssl: {
+                require: false,
+                rejectUnauthorized: false
+            }
+            // Remove all timeout options from here
         }
     }
 );
 
 const connectDB = async () => {
     try {
+        console.log('🔗 Connecting to database...');
+        console.log(`📍 Host: ${process.env.DB_HOST}`);
+        console.log(`📊 Database: ${process.env.DB_NAME}`);
+        console.log(`👤 User: ${process.env.DB_USER}`);
+        
         await sequelize.authenticate();
         console.log('✅ MySQL Database connected successfully');
-
+        
         if (process.env.NODE_ENV === 'development') {
-            // Check if tables exist before syncing to prevent duplicate indexes
             try {
-                const [results] = await sequelize.query("SHOW TABLES LIKE 'users'");
+                const [results] = await sequelize.query("SELECT 1 as test");
+                console.log('✅ Database query test successful');
                 
-                if (results.length === 0) {
-                    // Tables don't exist, create them
+                const [tables] = await sequelize.query("SHOW TABLES LIKE 'users'");
+                               
+                if (tables.length === 0) {
                     console.log('📊 Creating database tables...');
                     await sequelize.sync({ force: false });
                     console.log('✅ Database tables created successfully');
                 } else {
-                    // Tables exist, just validate connection
                     console.log('📊 Database tables already exist, skipping sync');
-                    console.log('🔗 Database connection validated');
                 }
             } catch (syncError) {
                 console.error('⚠️ Database sync error:', syncError.message);
-                // Don't exit, just log the error
             }
         }
     } catch (error) {
         console.error('❌ Database connection error:', error.message);
-        process.exit(1);
-    }
-};
-
-// Function to force reset database (use carefully!)
-const resetDatabase = async () => {
-    try {
-        console.log('🔄 Resetting database...');
-        await sequelize.drop();
-        console.log('🗑️ All tables dropped');
+        console.error('Full error:', error);
         
-        await sequelize.sync({ force: true });
-        console.log('✅ Database reset complete');
-        
-        return true;
-    } catch (error) {
-        console.error('❌ Reset failed:', error);
-        return false;
+        if (process.env.NODE_ENV === 'development') {
+            console.log('⚠️ Continuing in development mode despite DB error');
+        } else {
+            process.exit(1);
+        }
     }
 };
 
-// Function to manually sync (for migrations)
-const manualSync = async (options = {}) => {
-    try {
-        console.log('🔄 Manual database sync...');
-        await sequelize.sync(options);
-        console.log('✅ Manual sync complete');
-        return true;
-    } catch (error) {
-        console.error('❌ Manual sync failed:', error);
-        return false;
-    }
-};
-
-module.exports = { 
-    sequelize, 
-    connectDB, 
-    resetDatabase, 
-    manualSync 
+module.exports = {
+    sequelize,
+    connectDB
 };
