@@ -7,7 +7,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(), // This was missing in your second config
+    tailwindcss(),
   ],
   resolve: {
     alias: {
@@ -15,19 +15,13 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // Important for Render deployment
+    host: '0.0.0.0',
     port: process.env.PORT || 6000,
     strictPort: true,
-    proxy: {
-      '/api': {
-        target: 'https://isoko-finance.onrender.com',
-        changeOrigin: true,
-        secure: false,
-      },
-    },
+    // ✅ REMOVE THE PROXY COMPLETELY - No proxy needed for production
   },
   preview: {
-    host: '0.0.0.0', // Important for Render deployment
+    host: '0.0.0.0',
     port: process.env.PORT || 3000,
     strictPort: true,
     allowedHosts: [
