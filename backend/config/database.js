@@ -23,14 +23,10 @@ const sequelize = new Sequelize(
             freezeTableName: true
         },
         
-        // Clean dialectOptions - remove invalid options
+        // ✅ Simplified - no SSL at all
         dialectOptions: {
-            charset: 'utf8mb4',
-            ssl: {
-                require: false,
-                rejectUnauthorized: false
-            }
-            // Remove all timeout options from here
+            charset: 'utf8mb4'
+            // Remove SSL completely
         }
     }
 );
@@ -51,7 +47,7 @@ const connectDB = async () => {
                 console.log('✅ Database query test successful');
                 
                 const [tables] = await sequelize.query("SHOW TABLES LIKE 'users'");
-                               
+                
                 if (tables.length === 0) {
                     console.log('📊 Creating database tables...');
                     await sequelize.sync({ force: false });
