@@ -640,7 +640,7 @@ const navigationConfig = [
             },
             {
                 title: 'MFRS Ratios',
-                                path: '/reports/mfrs-ratios',
+                path: '/reports/mfrs-ratios',
                 roles: ['admin', 'supervisor']
             },
             {
