@@ -22,9 +22,9 @@ import {
   ArrowPathIcon,
   DocumentArrowDownIcon,
   DocumentArrowUpIcon,
-  DocumentMinusIcon,
-  DocumentPlusIcon,
-  DocumentXMarkIcon,
+  XMarkIcon, // Use XMarkIcon instead of DocumentXMarkIcon
+  PlusIcon, // Use PlusIcon instead of DocumentPlusIcon
+  MinusIcon, // Use MinusIcon instead of DocumentMinusIcon
 } from '@heroicons/react/24/outline';
 
 export const navigationConfig = {
@@ -47,7 +47,7 @@ export const navigationConfig = {
     {
       name: 'Add Loan',
       path: '/dashboard/admin/loans/add',
-      icon: DocumentPlusIcon,
+      icon: PlusIcon,
     },
     {
       name: 'Due Loans',
@@ -62,12 +62,12 @@ export const navigationConfig = {
     {
       name: 'Loans in Arrears',
       path: '/dashboard/admin/loans-in-arrears',
-      icon: DocumentXMarkIcon,
+      icon: XMarkIcon,
     },
     {
       name: 'No Repayment Loans',
       path: '/dashboard/admin/no-repayment-loans',
-      icon: DocumentMinusIcon,
+      icon: MinusIcon,
     },
     {
       name: 'Past Maturity',
@@ -119,12 +119,12 @@ export const navigationConfig = {
     {
       name: 'Loans in Arrears',
       path: '/dashboard/admin/loans-in-arrears',
-      icon: DocumentXMarkIcon,
+      icon: XMarkIcon,
     },
     {
       name: 'No Repayment Loans',
       path: '/dashboard/admin/no-repayment-loans',
-      icon: DocumentMinusIcon,
+      icon: MinusIcon,
     },
     {
       name: 'Past Maturity',
@@ -181,12 +181,12 @@ export const navigationConfig = {
     {
       name: 'Loans in Arrears',
       path: '/dashboard/loan-officer/loans-in-arrears',
-      icon: DocumentXMarkIcon,
+      icon: XMarkIcon,
     },
     {
       name: 'No Repayment Loans',
       path: '/dashboard/loan-officer/no-repayment-loans',
-      icon: DocumentMinusIcon,
+      icon: MinusIcon,
     },
   ],
   cashier: [

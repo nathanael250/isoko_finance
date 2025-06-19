@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../contexts/AuthContext'; // Fixed: added 's' to contexts
 import { useNavigate } from 'react-router-dom';
 
 export default function LoginPage() {
@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { login } = useAuth();
+  const { login, getDashboardRoute } = useAuth(); // Added getDashboardRoute
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -26,16 +26,68 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const result = await login(formData.email, formData.password);
-    
-    if (result.success) {
-      // Redirect based on user role
-      navigate(`/dashboard/${result.user.role}`);
-    } else {
-      setError(result.message);
+    try {
+      console.log('=== LOGIN ATTEMPT ===');
+      console.log('Form data:', formData);
+      
+      // Fixed: Pass object instead of separate parameters
+      const result = await login({ 
+        email: formData.email, 
+        password: formData.password 
+      });
+      
+      console.log('=== LOGIN RESULT ===');
+      console.log('Result:', result);
+      console.log('Success:', result?.success);
+      console.log('User:', result?.user);
+      console.log('User role:', result?.user?.role);
+
+      if (result && result.success) {
+        console.log('Login successful!');
+        
+        if (result.user && result.user.role) {
+          // Use getDashboardRoute or manual mapping
+          let dashboardRoute;
+          
+          if (getDashboardRoute) {
+            dashboardRoute = getDashboardRoute(result.user.role);
+          } else {
+            // Manual mapping based on your App.jsx routes
+            switch (result.user.role) {
+              case 'admin':
+                dashboardRoute = '/dashboard/admin';
+                break;
+              case 'supervisor':
+                dashboardRoute = '/dashboard/supervisor';
+                break;
+              case 'loan-officer':
+                dashboardRoute = '/dashboard/loan-officer';
+                break;
+              case 'cashier':
+                dashboardRoute = '/dashboard/cashier';
+                break;
+              default:
+                dashboardRoute = '/dashboard/admin'; // Default fallback
+            }
+          }
+          
+          console.log('Navigating to:', dashboardRoute);
+          navigate(dashboardRoute, { replace: true });
+          
+        } else {
+          console.log('No user role found, using default route');
+          navigate('/dashboard/admin', { replace: true });
+        }
+      } else {
+        console.log('Login failed:', result?.message);
+        setError(result?.message || 'Login failed');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
@@ -44,34 +96,31 @@ export default function LoginPage() {
         {/* Left Panel - Branding */}
         <div className="bg-[#00509E] flex-1 p-12 flex flex-col justify-center items-center text-white relative rounded-[0px_200px_0px_0px]">
           <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full"></div>
-
           {/* Main content */}
           <div className="text-center">
             <h1 className="text-4xl font-bold mb-4">Isoko finance</h1>
             <p className="text-blue-100 text-lg">Login to continue</p>
           </div>
-
           {/* Decorative curved design */}
           <div className="absolute -right-8 top-0 w-32 h-32 bg-blue-500 rounded-full opacity-30"></div>
         </div>
-
+        
         {/* Right Panel - Form */}
         <div className="flex-1 p-12 flex flex-col justify-center relative overflow-hidden">
           <svg className="absolute top-0 right-[-10px] w-100 h-100 -z-10" viewBox="0 0 1400 1400">
-            <path fill="#00509E" d="M953.5,1.5c47.76,10.65,159.86,42.34,262,141c102.16,98.68,137.71,209.64,150,257c0-132.67,0-265.33,0-398
-    C1228.17,1.5,1090.83,1.5,953.5,1.5z"/>
+            <path fill="#00509E" d="M953.5,1.5c47.76,10.65,159.86,42.34,262,141c102.16,98.68,137.71,209.64,150,257c0-132.67,0-265.33,0-398    C1228.17,1.5,1090.83,1.5,953.5,1.5z"/>
           </svg>
-
+          
           <div className="max-w-sm mx-auto w-full relative z-10">
             <h2 className="text-4xl text-center font-bold text-[#00509E] mb-2">welcome</h2>
             <p className="text-center mb-8">Log into your account to continue</p>
-
+            
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
                 {error}
               </div>
             )}
-
+            
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <input
@@ -84,7 +133,7 @@ export default function LoginPage() {
                   required
                 />
               </div>
-
+              
               <div>
                 <input
                   type="password"
@@ -96,7 +145,7 @@ export default function LoginPage() {
                   required
                 />
               </div>
-
+              
               <div className="pt-4">
                 <button
                   type="submit"
@@ -107,8 +156,18 @@ export default function LoginPage() {
                 </button>
               </div>
             </form>
-
             
+            {/* Temporary test button - remove after testing */}
+            <button 
+              type="button" 
+              onClick={() => {
+                console.log('Test navigation clicked');
+                navigate('/dashboard/admin');
+              }}
+              className="w-full mt-4 bg-green-600 text-white py-2 px-4 rounded"
+            >
+              Test Navigation (Remove Later)
+            </button>
           </div>
         </div>
       </div>
