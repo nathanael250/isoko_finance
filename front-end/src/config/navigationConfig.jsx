@@ -22,9 +22,9 @@ import {
   ArrowPathIcon,
   DocumentArrowDownIcon,
   DocumentArrowUpIcon,
-  XMarkIcon, // Use XMarkIcon instead of DocumentXMarkIcon
-  PlusIcon, // Use PlusIcon instead of DocumentPlusIcon
-  MinusIcon, // Use MinusIcon instead of DocumentMinusIcon
+  XMarkIcon,
+  PlusIcon,
+  MinusIcon,
 } from '@heroicons/react/24/outline';
 
 export const navigationConfig = {
@@ -137,7 +137,61 @@ export const navigationConfig = {
       icon: BanknotesIcon,
     },
   ],
+  // FIXED: Support both underscore and hyphen versions
   loan_officer: [
+    {
+      name: 'Dashboard',
+      path: '/dashboard/loan-officer',
+      icon: HomeIcon,
+    },
+    {
+      name: 'My Loans',
+      path: '/dashboard/loan-officer/my-loans',
+      icon: ClipboardDocumentListIcon,
+    },
+    {
+      name: 'Loan Applications',
+      path: '/dashboard/loan-officer/applications',
+      icon: DocumentTextIcon,
+    },
+    {
+      name: 'Client Management',
+      path: '/dashboard/loan-officer/clients',
+      icon: UserGroupIcon,
+    },
+    {
+      name: 'Document Processing',
+      path: '/dashboard/loan-officer/documents',
+      icon: DocumentDuplicateIcon,
+    },
+    {
+      name: 'Loan Calculator',
+      path: '/dashboard/loan-officer/calculator',
+      icon: CalculatorIcon,
+    },
+    {
+      name: 'Due Loans',
+      path: '/dashboard/loan-officer/due-loans',
+      icon: ClockIcon,
+    },
+    {
+      name: 'Missed Repayments',
+      path: '/dashboard/loan-officer/missed-repayments',
+      icon: ExclamationTriangleIcon,
+    },
+    {
+      name: 'Loans in Arrears',
+      path: '/dashboard/loan-officer/loans-in-arrears',
+      icon: XMarkIcon,
+    },
+    {
+      name: 'No Repayment Loans',
+      path: '/dashboard/loan-officer/no-repayment-loans',
+      icon: MinusIcon,
+    },
+  ],
+  // ADD: Support for hyphen version
+  'loan-officer': [
     {
       name: 'Dashboard',
       path: '/dashboard/loan-officer',
@@ -235,10 +289,41 @@ export const navigationConfig = {
   ],
 };
 
+// UPDATED: Better function to handle both underscore and hyphen
 export const getNavigationForRole = (role) => {
-  return navigationConfig[role] || [];
+  console.log('=== NAVIGATION CONFIG DEBUG ===');
+  console.log('Requested role:', role);
+  console.log('Available roles:', Object.keys(navigationConfig));
+  
+  // Try exact match first
+  let roleNavigation = navigationConfig[role];
+  
+  // If not found, try converting underscore to hyphen
+  if (!roleNavigation && role && role.includes('_')) {
+    const hyphenRole = role.replace('_', '-');
+    console.log('Trying hyphen version:', hyphenRole);
+    roleNavigation = navigationConfig[hyphenRole];
+  }
+  
+  // If not found, try converting hyphen to underscore
+  if (!roleNavigation && role && role.includes('-')) {
+    const underscoreRole = role.replace('-', '_');
+    console.log('Trying underscore version:', underscoreRole);
+    roleNavigation = navigationConfig[underscoreRole];
+  }
+  
+  const sharedNavigation = navigationConfig.shared || [];
+  const finalNavigation = [...(roleNavigation || []), ...sharedNavigation];
+  
+  console.log('Role navigation items:', roleNavigation?.length || 0);
+  console.log('Shared navigation items:', sharedNavigation.length);
+  console.log('Final navigation items:', finalNavigation.length);
+  console.log('Final navigation:', finalNavigation.map(item => item.name));
+  console.log('=== END NAVIGATION DEBUG ===');
+  
+  return finalNavigation;
 };
 
 export const getAllNavigationItems = () => {
   return Object.values(navigationConfig).flat();
-}; 
+};

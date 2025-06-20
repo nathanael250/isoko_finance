@@ -95,7 +95,7 @@ export default function LoginPage() {
       <div className="bg-white rounded-3xl shadow-2xl overflow-hidden max-w-4xl w-full flex">
         {/* Left Panel - Branding */}
         <div className="bg-[#00509E] flex-1 p-12 flex flex-col justify-center items-center text-white relative rounded-[0px_200px_0px_0px]">
-          <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full"></div>
+          <img src="isoko logo.png" alt="logo" className='w-32 h-32'/>
           {/* Main content */}
           <div className="text-center">
             <h1 className="text-4xl font-bold mb-4">Isoko finance</h1>

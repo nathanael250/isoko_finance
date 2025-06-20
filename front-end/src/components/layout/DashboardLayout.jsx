@@ -3,243 +3,7 @@ import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import Header from '../ui/Header';
-import {
-  HomeIcon,
-  UsersIcon,
-  DocumentTextIcon,
-  CalculatorIcon,
-  ClipboardDocumentListIcon,
-  CurrencyDollarIcon,
-  ChartBarIcon,
-  CogIcon,
-  DocumentDuplicateIcon,
-  UserGroupIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  ReceiptPercentIcon,
-  BanknotesIcon,
-  CalendarIcon,
-  UserCircleIcon,
-} from '@heroicons/react/24/outline';
-
-const iconMap = {
-  HomeIcon,
-  UsersIcon,
-  DocumentTextIcon,
-  CalculatorIcon,
-  ClipboardDocumentListIcon,
-  CurrencyDollarIcon,
-  ChartBarIcon,
-  CogIcon,
-  DocumentDuplicateIcon,
-  UserGroupIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  ReceiptPercentIcon,
-  BanknotesIcon,
-  CalendarIcon,
-  UserCircleIcon,
-};
-
-const navigationConfig = [
-  {
-    id: 'dashboard',
-    title: 'Dashboard',
-    path: (role) => `/dashboard/${role}`,
-    icon: 'HomeIcon',
-    roles: ['admin', 'supervisor', 'loan_officer', 'cashier'],
-  },
-  {
-    id: 'loans',
-    title: 'Loans',
-    icon: 'DocumentTextIcon',
-    roles: ['admin', 'supervisor', 'loan_officer', 'cashier'],
-    hasDropdown: true,
-    children: [
-      {
-        id: 'all-loans',
-        title: 'All Loans',
-        path: '/dashboard/admin/loans',
-        roles: ['admin'],
-      },
-      {
-        id: 'my-loans',
-        title: 'My Loans',
-        path: '/dashboard/loan-officer/my-loans',
-        roles: ['loan_officer'],
-      },
-      {
-        id: 'add-loan',
-        title: 'Add Loan',
-        path: '/dashboard/admin/loans/add',
-        roles: ['admin'],
-      },
-      {
-        id: 'due-loans',
-        title: 'Due Loans',
-        path: '/dashboard/admin/due-loans',
-        roles: ['admin', 'supervisor', 'loan_officer'],
-      },
-      {
-        id: 'missed-repayments',
-        title: 'Missed Repayments',
-        path: '/dashboard/admin/missed-repayments',
-        roles: ['admin', 'supervisor', 'loan_officer'],
-      },
-      {
-        id: 'loans-in-arrears',
-        title: 'Loans in Arrears',
-        path: '/dashboard/admin/loans-in-arrears',
-        roles: ['admin', 'supervisor', 'loan_officer'],
-      },
-      {
-        id: 'no-repayment-loans',
-        title: 'No Repayment Loans',
-        path: '/dashboard/admin/no-repayment-loans',
-        roles: ['admin', 'supervisor', 'loan_officer'],
-      },
-      {
-        id: 'past-maturity',
-        title: 'Past Maturity',
-        path: '/dashboard/admin/past-maturity',
-        roles: ['admin', 'supervisor'],
-      },
-      {
-        id: 'principal-outstanding',
-        title: 'Principal Outstanding',
-        path: '/dashboard/admin/principal-outstanding',
-        roles: ['admin', 'supervisor'],
-      },
-    ],
-  },
-  {
-    id: 'transactions',
-    title: 'Transactions',
-    icon: 'CurrencyDollarIcon',
-    roles: ['cashier'],
-    hasDropdown: true,
-    children: [
-      {
-        id: 'payment-records',
-        title: 'Payment Records',
-        path: '/dashboard/cashier/payment-records',
-        roles: ['cashier'],
-      },
-      {
-        id: 'daily-reports',
-        title: 'Daily Reports',
-        path: '/dashboard/cashier/daily-reports',
-        roles: ['cashier'],
-      },
-      {
-        id: 'payment-history',
-        title: 'Payment History',
-        path: '/dashboard/cashier/payment-history',
-        roles: ['cashier'],
-      },
-      {
-        id: 'due-collections',
-        title: 'Due Collections',
-        path: '/dashboard/cashier/due-collections',
-        roles: ['cashier'],
-      },
-      {
-        id: 'overdue-loans',
-        title: 'Overdue Loans',
-        path: '/dashboard/cashier/overdue-loans',
-        roles: ['cashier'],
-      },
-    ],
-  },
-  {
-    id: 'loan-officer-tools',
-    title: 'Loan Officer Tools',
-    icon: 'CalculatorIcon',
-    roles: ['loan_officer'],
-    hasDropdown: true,
-    children: [
-      {
-        id: 'applications',
-        title: 'Loan Applications',
-        path: '/dashboard/loan-officer/applications',
-        roles: ['loan_officer'],
-      },
-      {
-        id: 'clients',
-        title: 'Client Management',
-        path: '/dashboard/loan-officer/clients',
-        roles: ['loan_officer'],
-      },
-      {
-        id: 'documents',
-        title: 'Document Processing',
-        path: '/dashboard/loan-officer/documents',
-        roles: ['loan_officer'],
-      },
-      {
-        id: 'calculator',
-        title: 'Loan Calculator',
-        path: '/dashboard/loan-officer/calculator',
-        roles: ['loan_officer'],
-      },
-    ],
-  },
-  {
-    id: 'admin-tools',
-    title: 'Admin Tools',
-    icon: 'CogIcon',
-    roles: ['admin'],
-    hasDropdown: true,
-    children: [
-      {
-        id: 'users',
-        title: 'User Management',
-        path: '/dashboard/admin/users',
-        roles: ['admin'],
-      },
-      {
-        id: 'reports',
-        title: 'Reports',
-        path: '/dashboard/admin/reports',
-        roles: ['admin'],
-      },
-      {
-        id: 'settings',
-        title: 'Settings',
-        path: '/dashboard/admin/settings',
-        roles: ['admin'],
-      },
-    ],
-  },
-  {
-    id: 'supervisor-tools',
-    title: 'Supervisor Tools',
-    icon: 'UserGroupIcon',
-    roles: ['supervisor'],
-    hasDropdown: true,
-    children: [
-      {
-        id: 'team',
-        title: 'Team Overview',
-        path: '/dashboard/supervisor/team',
-        roles: ['supervisor'],
-      },
-      {
-        id: 'performance',
-        title: 'Performance Metrics',
-        path: '/dashboard/supervisor/performance',
-        roles: ['supervisor'],
-      },
-    ],
-  },
-  {
-    id: 'profile',
-    title: 'Profile',
-    path: '/dashboard/profile',
-    icon: 'UserCircleIcon',
-    roles: ['admin', 'supervisor', 'loan_officer', 'cashier'],
-  },
-];
+import { getNavigationForRole } from '../../config/navigationConfig';
 
 const DashboardLayout = () => {
     const { user } = useAuth();
@@ -257,28 +21,12 @@ const DashboardLayout = () => {
         }));
     };
 
-    // Filter navigation based on user role with specific business logic
-    const getFilteredNavigation = () => {
-        if (!user?.role) return [];
-        
-        return navigationConfig.filter(item => {
-            // Check if user role is allowed for this navigation item
-            const hasAccess = item.roles.includes(user.role);
-            
-            if (hasAccess && item.children) {
-                // Filter children based on user role
-                item.filteredChildren = item.children.filter(child => 
-                    child.roles.includes(user.role)
-                );
-                // Only show parent if it has accessible children
-                return item.filteredChildren.length > 0;
-            }
-            
-            return hasAccess;
-        });
-    };
+    // Get navigation items for the current user's role
+    const navigationItems = getNavigationForRole(user?.role);
 
-    const filteredNavigation = getFilteredNavigation();
+    console.log('=== DASHBOARD LAYOUT DEBUG ===');
+    console.log('User role:', user?.role);
+    console.log('Navigation items:', navigationItems);
 
     // Get role-specific welcome message
     const getRoleWelcomeMessage = () => {
@@ -287,81 +35,29 @@ const DashboardLayout = () => {
                 return 'Administrator Dashboard';
             case 'supervisor':
                 return 'Supervisor Dashboard';
-            case 'loan_officer':
+            case 'loan-officer':
                 return 'Loan Officer Dashboard - Your Assigned Portfolio';
             case 'cashier':
-                return 'Cashier Dashboard - Loan Requests';
+                return 'Cashier Dashboard - Transaction Management';
             default:
                 return 'Dashboard';
         }
     };
 
     // Render navigation item
-    const renderNavigationItem = (item) => {
-        const IconComponent = iconMap[item.icon];
-        const isDropdownOpen = openDropdowns[item.id];
+    const renderNavigationItem = (item, index) => {
+        const IconComponent = item.icon;
 
-        if (item.hasDropdown) {
-            return (
-                <li key={item.id}>
-                    <div>
-                        <button
-                            onClick={() => toggleDropdown(item.id)}
-                            className="group text-white relative flex items-center justify-between w-full gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4"
-                        >
-                            <div className="flex items-center gap-2.5">
-                                <IconComponent className='w-5 h-5 text-white' />
-                                {item.title}
-                                {/* Add role-specific indicators */}
-                                {user?.role === 'loan_officer' && item.id === 'loans' && (
-                                    <span className="text-xs bg-blue-500 px-1 rounded">My Portfolio</span>
-                                )}
-                                {user?.role === 'cashier' && item.id === 'loans' && (
-                                    <span className="text-xs bg-green-500 px-1 rounded">Requests</span>
-                                )}
-                            </div>
-                            {isDropdownOpen ? (
-                                <ChevronDown className='w-4 h-4 text-white' />
-                            ) : (
-                                <ChevronRight className='w-4 h-4 text-white' />
-                            )}
-                        </button>
-                        
-                        {/* Dropdown Menu */}
-                        {isDropdownOpen && (
-                            <ul className="mt-2 ml-4 space-y-1">
-                                {(item.filteredChildren || item.children)?.map((child, index) => (
-                                    <li key={index}>
-                                        <Link
-                                            to={child.path}
-                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4"
-                                        >
-                                            {child.title}
-                                            {/* Add role-specific badges */}
-                                            {user?.role === 'loan_officer' && child.title.includes('My') && (
-                                                <span className="text-xs bg-blue-400 px-1 rounded ml-auto">Assigned</span>
-                                            )}
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </li>
-            );
-        }
-
-        // Regular navigation item without dropdown
         return (
-            <li key={item.id}>
+            <li key={index}>
                 <Link
-                    to={typeof item.path === 'function' ? item.path(user?.role) : item.path}
+                    to={item.path}
                     className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4"
                 >
                     <IconComponent className='w-5 h-5 text-white' />
-                    {item.title}
+                    {item.name}
                     {/* Add role-specific indicators */}
-                    {user?.role === 'loan_officer' && item.id === 'borrowers' && (
+                    {user?.role === 'loan-officer' && item.name.includes('My') && (
                         <span className="text-xs bg-blue-500 px-1 rounded ml-auto">Assigned</span>
                     )}
                 </Link>
@@ -412,13 +108,13 @@ const DashboardLayout = () => {
                         <nav className="mt-5 py-4 px-2 lg:mt-9 lg:px-4">
                             <div>
                                 <ul className="space-y-1">
-                                    {filteredNavigation.map(item => renderNavigationItem(item))}
+                                    {navigationItems.map((item, index) => renderNavigationItem(item, index))}
                                 </ul>
 
                                 {/* Role-specific help text */}
                                 <div className="mt-8 px-2">
                                     <div className="text-xs text-gray-400 border-t border-gray-600 pt-4">
-                                        {user?.role === 'loan_officer' && (
+                                        {user?.role === 'loan-officer' && (
                                             <p>You can only view borrowers and loans assigned to you.</p>
                                         )}
                                         {user?.role === 'cashier' && (
@@ -449,7 +145,7 @@ const DashboardLayout = () => {
                                 <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-200">
                                     {getRoleWelcomeMessage()}
                                 </h2>
-                                {user?.role === 'loan_officer' && (
+                                {user?.role === 'loan-officer' && (
                                     <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
                                         Access is limited to your assigned borrowers and loans only.
                                     </p>
