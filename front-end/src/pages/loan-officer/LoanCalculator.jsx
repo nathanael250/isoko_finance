@@ -20,6 +20,7 @@ const LoanCalculator = () => {
 
   const [results, setResults] = useState(null);
   const [editableAmortizationSchedule, setEditableAmortizationSchedule] = useState([]);
+  const [userEditedRepayments, setUserEditedRepayments] = useState(false);
 
   useEffect(() => {
     const fetchLoanTypes = async () => {
@@ -41,6 +42,45 @@ const LoanCalculator = () => {
       setEditableAmortizationSchedule(results.amortizationSchedule);
     }
   }, [results]);
+
+  useEffect(() => {
+    if (!userEditedRepayments) {
+      // Only auto-calculate if the user hasn't manually changed it
+      const duration = parseInt(formData.loanDuration);
+      if (!isNaN(duration) && duration > 0) {
+        let repayments = duration;
+        // Adjust based on units and cycle
+        if (formData.durationUnit === 'months') {
+          if (formData.repaymentCycle === 'monthly') repayments = duration;
+          if (formData.repaymentCycle === 'weekly') repayments = duration * 4;
+          if (formData.repaymentCycle === 'daily') repayments = duration * 30;
+          if (formData.repaymentCycle === 'quarterly') repayments = Math.ceil(duration / 3);
+        }
+        if (formData.durationUnit === 'years') {
+          if (formData.repaymentCycle === 'monthly') repayments = duration * 12;
+          if (formData.repaymentCycle === 'weekly') repayments = duration * 52;
+          if (formData.repaymentCycle === 'daily') repayments = duration * 365;
+          if (formData.repaymentCycle === 'quarterly') repayments = duration * 4;
+        }
+        if (formData.durationUnit === 'weeks') {
+          if (formData.repaymentCycle === 'weekly') repayments = duration;
+          if (formData.repaymentCycle === 'monthly') repayments = Math.ceil(duration / 4);
+          if (formData.repaymentCycle === 'daily') repayments = duration * 7;
+          if (formData.repaymentCycle === 'quarterly') repayments = Math.ceil(duration / 13);
+        }
+        if (formData.durationUnit === 'days') {
+          if (formData.repaymentCycle === 'daily') repayments = duration;
+          if (formData.repaymentCycle === 'weekly') repayments = Math.ceil(duration / 7);
+          if (formData.repaymentCycle === 'monthly') repayments = Math.ceil(duration / 30);
+          if (formData.repaymentCycle === 'quarterly') repayments = Math.ceil(duration / 90);
+        }
+        setFormData(prev => ({
+          ...prev,
+          numberOfRepayments: repayments.toString()
+        }));
+      }
+    }
+  }, [formData.loanDuration, formData.durationUnit, formData.repaymentCycle, userEditedRepayments]);
 
   const handleLoanTypeChange = (e) => {
     const loanTypeId = e.target.value;
@@ -71,6 +111,12 @@ const LoanCalculator = () => {
       ...prev,
       [name]: value
     }));
+    if (name === 'numberOfRepayments') {
+      setUserEditedRepayments(true);
+    }
+    if (['loanDuration', 'durationUnit', 'repaymentCycle'].includes(name)) {
+      setUserEditedRepayments(false);
+    }
   };
 
   const handleAmortizationEdit = (id, field, value) => {
