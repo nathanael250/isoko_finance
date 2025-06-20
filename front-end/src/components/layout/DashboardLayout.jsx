@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { navigationConfig } from '../../components/config/navigationConfig';
 import Header from '../ui/Header';
-import { getNavigationForRole } from '../../config/navigationConfig';
 
 const DashboardLayout = () => {
     const { user } = useAuth();
@@ -21,12 +21,28 @@ const DashboardLayout = () => {
         }));
     };
 
-    // Get navigation items for the current user's role
-    const navigationItems = getNavigationForRole(user?.role);
+    // Filter navigation based on user role with specific business logic
+    const getFilteredNavigation = () => {
+        if (!user?.role) return [];
+        
+        return navigationConfig.filter(item => {
+            // Check if user role is allowed for this navigation item
+            const hasAccess = item.roles.includes(user.role);
+            
+            if (hasAccess && item.children) {
+                // Filter children based on user role
+                item.filteredChildren = item.children.filter(child => 
+                    child.roles.includes(user.role)
+                );
+                // Only show parent if it has accessible children
+                return item.filteredChildren.length > 0;
+            }
+            
+            return hasAccess;
+        });
+    };
 
-    console.log('=== DASHBOARD LAYOUT DEBUG ===');
-    console.log('User role:', user?.role);
-    console.log('Navigation items:', navigationItems);
+    const filteredNavigation = getFilteredNavigation();
 
     // Get role-specific welcome message
     const getRoleWelcomeMessage = () => {
@@ -38,26 +54,78 @@ const DashboardLayout = () => {
             case 'loan-officer':
                 return 'Loan Officer Dashboard - Your Assigned Portfolio';
             case 'cashier':
-                return 'Cashier Dashboard - Transaction Management';
+                return 'Cashier Dashboard - Loan Requests';
             default:
                 return 'Dashboard';
         }
     };
 
     // Render navigation item
-    const renderNavigationItem = (item, index) => {
+    const renderNavigationItem = (item) => {
         const IconComponent = item.icon;
+        const isDropdownOpen = openDropdowns[item.id];
 
+        if (item.hasDropdown) {
+            return (
+                <li key={item.id}>
+                    <div>
+                        <button
+                            onClick={() => toggleDropdown(item.id)}
+                            className="group text-white relative flex items-center justify-between w-full gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4"
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <IconComponent className='w-5 h-5 text-white' />
+                                {item.title}
+                                {/* Add role-specific indicators */}
+                                {user?.role === 'loan-officer' && item.id === 'loans' && (
+                                    <span className="text-xs bg-blue-500 px-1 rounded">My Portfolio</span>
+                                )}
+                                {user?.role === 'cashier' && item.id === 'loans' && (
+                                    <span className="text-xs bg-green-500 px-1 rounded">Requests</span>
+                                )}
+                            </div>
+                            {isDropdownOpen ? (
+                                <ChevronDown className='w-4 h-4 text-white' />
+                            ) : (
+                                <ChevronRight className='w-4 h-4 text-white' />
+                            )}
+                        </button>
+                        
+                        {/* Dropdown Menu */}
+                        {isDropdownOpen && (
+                            <ul className="mt-2 ml-4 space-y-1">
+                                {(item.filteredChildren || item.children)?.map((child, index) => (
+                                    <li key={index}>
+                                        <Link
+                                            to={child.path}
+                                            className="group text-gray-300 relative flex items-center gap-2.5 rounded-sm py-1.5 px-3 text-xs font-medium duration-300 ease-in-out hover:bg-graydark hover:text-white dark:hover:bg-meta-4"
+                                        >
+                                            {child.title}
+                                            {/* Add role-specific badges */}
+                                            {user?.role === 'loan-officer' && child.title.includes('My') && (
+                                                <span className="text-xs bg-blue-400 px-1 rounded ml-auto">Assigned</span>
+                                            )}
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </li>
+            );
+        }
+
+        // Regular navigation item without dropdown
         return (
-            <li key={index}>
+            <li key={item.id}>
                 <Link
-                    to={item.path}
+                    to={typeof item.path === 'function' ? item.path(user?.role) : item.path}
                     className="group text-white relative flex items-center gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4"
                 >
                     <IconComponent className='w-5 h-5 text-white' />
-                    {item.name}
+                    {item.title}
                     {/* Add role-specific indicators */}
-                    {user?.role === 'loan-officer' && item.name.includes('My') && (
+                    {user?.role === 'loan-officer' && item.id === 'borrowers' && (
                         <span className="text-xs bg-blue-500 px-1 rounded ml-auto">Assigned</span>
                     )}
                 </Link>
@@ -108,7 +176,7 @@ const DashboardLayout = () => {
                         <nav className="mt-5 py-4 px-2 lg:mt-9 lg:px-4">
                             <div>
                                 <ul className="space-y-1">
-                                    {navigationItems.map((item, index) => renderNavigationItem(item, index))}
+                                    {filteredNavigation.map(item => renderNavigationItem(item))}
                                 </ul>
 
                                 {/* Role-specific help text */}
