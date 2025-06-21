@@ -64,6 +64,15 @@ export const clientsAPI = {
     updateClient: (id, clientData) => api.put(`/clients/${id}`, clientData),
     deleteClient: (id) => api.delete(`/clients/${id}`),
 };
+// Add this to your existing api.js file
+export const borrowersAPI = {
+    getBorrowers: (params) => api.get('/clients', { params }),
+    createBorrower: (borrowerData) => api.post('/clients', borrowerData),
+    getBorrower: (id) => api.get(`/clients/${id}`),
+    updateBorrower: (id, borrowerData) => api.put(`/clients/${id}`, borrowerData),
+    deleteBorrower: (id) => api.delete(`/clients/${id}`),
+};
+
 
 // Loans API
 export const loansAPI = {
@@ -404,12 +413,23 @@ export const cashierAPI = {
 
 // Loan Types API
 export const loanTypesAPI = {
-    getLoanTypes: (params) => api.get('/loan-types', { params }),
+    getLoanTypes: (params = {}) => {
+
+        
+        // Clean params - remove empty strings, null, and undefined values
+        const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+
+        
+        return api.get('/loan-types', { params: cleanParams });
+    },
     createLoanType: (data) => api.post('/loan-types', data),
     getLoanType: (id) => api.get(`/loan-types/${id}`),
     updateLoanType: (id, data) => api.put(`/loan-types/${id}`, data),
     deleteLoanType: (id) => api.delete(`/loan-types/${id}`),
-    getActivities: (limit = 10) => api.get(`/dashboard/activities?limit=${limit}`),
-    getPerformance: () => api.get('/dashboard/performance'),
-    getCharts: (type, period = 'monthly') => api.get(`/dashboard/charts/${type}?period=${period}`)
 };
+

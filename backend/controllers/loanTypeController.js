@@ -8,7 +8,10 @@ const User = require('../models/User');
 // @access  Private
 const getLoanTypes = async (req, res) => {
   try {
-    console.log('Fetching loan types with query:', req.query);
+    console.log('=== LOAN TYPES REQUEST DEBUG ===');
+    console.log('Query params:', req.query);
+    console.log('User:', req.user?.id);
+    
     const { 
       page = 1, 
       limit = 10, 
@@ -18,6 +21,8 @@ const getLoanTypes = async (req, res) => {
       search 
     } = req.query;
 
+    console.log('Parsed params:', { page, limit, category, is_active, is_visible_to_clients, search });
+
     const offset = (page - 1) * limit;
     const where = {};
 
@@ -26,13 +31,17 @@ const getLoanTypes = async (req, res) => {
     if (is_active !== undefined) where.is_active = is_active === 'true';
     if (is_visible_to_clients !== undefined) where.is_visible_to_clients = is_visible_to_clients === 'true';
     
+    // Fixed search logic for MySQL
     if (search) {
       where[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { code: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
+        { name: { [Op.like]: `%${search}%` } },
+        { code: { [Op.like]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } }
       ];
     }
+
+    console.log('Where clause:', JSON.stringify(where, null, 2));
+    console.log('Limit:', parseInt(limit), 'Offset:', parseInt(offset));
 
     const { count, rows } = await LoanType.findAndCountAll({
       where,
@@ -56,6 +65,8 @@ const getLoanTypes = async (req, res) => {
     });
 
     console.log(`Found ${count} loan types.`);
+    console.log('=== END DEBUG ===');
+    
     res.status(200).json({
       success: true,
       data: {
@@ -70,14 +81,23 @@ const getLoanTypes = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get loan types error:', error);
+    console.error('=== LOAN TYPES ERROR ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('SQL Error:', error.sql);
+    console.error('Original error:', error.original);
+    console.error('=== END ERROR ===');
+    
     res.status(500).json({
       success: false,
       message: 'Error fetching loan types',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
+
 
 // @desc    Get single loan type
 // @route   GET /api/loan-types/:id
@@ -426,11 +446,11 @@ const calculateLoanPreview = async (req, res) => {
     // Calculate installment amount using reducing balance
     const monthlyRate = (loanType.nominal_interest_rate || 0) / 100 / 12;
     const periodicRate = monthlyRate * (termInMonths / totalInstallments);
-    
+
     let installmentAmount;
     if (periodicRate > 0) {
-      installmentAmount = amount * 
-        (periodicRate * Math.pow(1 + periodicRate, totalInstallments)) / 
+      installmentAmount = amount *
+        (periodicRate * Math.pow(1 + periodicRate, totalInstallments)) /
         (Math.pow(1 + periodicRate, totalInstallments) - 1);
     } else {
       installmentAmount = amount / totalInstallments;

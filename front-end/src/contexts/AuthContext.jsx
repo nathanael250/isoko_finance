@@ -19,11 +19,11 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (token) {
         const response = await authAPI.getMe();
-        console.log('Auth check response:', response);
+
 
         if (response.data.success) {
           const userData = response.data.data?.user || response.data.data;
-          console.log('Setting user data:', userData);
+
           setUser(userData);
         } else {
           localStorage.removeItem('token');
@@ -42,25 +42,18 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials, onSuccess) => {
     try {
       setError(null);
-      console.log('=== AUTHCONTEXT LOGIN START ===');
-      console.log('Credentials:', credentials);
+
 
       const response = await authAPI.login(credentials);
-      console.log('=== API RESPONSE ===');
-      console.log('Response type:', typeof response);
-      console.log('Response status:', response.status);
-      console.log('Response data:', response.data);
+
 
       if (response.data && response.data.success) {
-        console.log('=== SUCCESS BRANCH ===');
+
         const responseData = response.data.data || {};
-        console.log('Response data.data:', responseData);
+
 
         const { token, user } = responseData;
 
-        console.log('Extracted token:', token);
-        console.log('Extracted userData:', user);
-        console.log('UserData type:', typeof user);
 
         if (token && user) {
           localStorage.setItem('token', token);
@@ -71,28 +64,20 @@ export const AuthProvider = ({ children }) => {
             success: true,
             user
           };
-          console.log('=== RETURNING ===');
-          console.log('Return value:', returnValue);
-          console.log('=== END AUTHCONTEXT ===');
+
 
           if (onSuccess) onSuccess(user);
           return returnValue;
         } else {
-          console.error('Missing token or user data');
-          console.log('Token exists:', !!token);
-          console.log('UserData exists:', !!user);
+
           return { success: false, message: response.data.message || 'Login failed' };
         }
       } else {
-        console.log('=== FAILURE BRANCH ===');
-        console.log('Response.data.success:', response.data?.success);
+
         return { success: false, message: response.data?.message || 'Login failed' };
       }
     } catch (err) {
-      console.error('=== AUTHCONTEXT ERROR ===');
-      console.error('Error:', err);
-      console.error('Error response:', err.response);
-      console.error('Error response data:', err.response?.data);
+
 
       const errorMessage = err.response?.data?.message || err.message || 'Login failed';
       setError(errorMessage);
@@ -103,7 +88,7 @@ export const AuthProvider = ({ children }) => {
   // UPDATED LOGOUT FUNCTION
   const logout = async () => {
     try {
-      console.log('=== LOGOUT START ===');
+
       
       // Clear local storage first
       localStorage.removeItem('token');
@@ -113,21 +98,21 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setError(null);
       
-      console.log('Local storage cleared, user state cleared');
+
       
       // Try to call logout API (optional, don't fail if it doesn't work)
       try {
         await authAPI.logout();
-        console.log('API logout successful');
+
       } catch (apiError) {
-        console.log('API logout failed (but continuing):', apiError);
+
       }
       
       // Navigate to login page
-      console.log('Navigating to login...');
+
       navigate('/login', { replace: true });
       
-      console.log('=== LOGOUT COMPLETE ===');
+
       
     } catch (error) {
       console.error('Logout error:', error);

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { navigationConfig } from '../../components/config/navigationConfig';
+import {navigationConfig}  from '../../components/config/navigationConfig';
 import Header from '../ui/Header';
 
 const DashboardLayout = () => {
@@ -23,24 +23,35 @@ const DashboardLayout = () => {
 
     // Filter navigation based on user role with specific business logic
     const getFilteredNavigation = () => {
-        if (!user?.role) return [];
-        
-        return navigationConfig.filter(item => {
-            // Check if user role is allowed for this navigation item
-            const hasAccess = item.roles.includes(user.role);
+    if (!user?.role) return [];
+    
+    const filterChildren = (children) => {
+        return children.filter(child => {
+            if (!child.roles.includes(user.role)) return false;
             
-            if (hasAccess && item.children) {
-                // Filter children based on user role
-                item.filteredChildren = item.children.filter(child => 
-                    child.roles.includes(user.role)
-                );
-                // Only show parent if it has accessible children
-                return item.filteredChildren.length > 0;
+            if (child.children) {
+                // Recursively filter nested children
+                child.filteredChildren = filterChildren(child.children);
+                // Only show parent if it has accessible children OR has a path
+                return child.filteredChildren.length > 0 || child.path;
             }
             
-            return hasAccess;
+            return true;
         });
     };
+    
+    return navigationConfig.filter(item => {
+        const hasAccess = item.roles.includes(user.role);
+        
+        if (hasAccess && item.children) {
+            item.filteredChildren = filterChildren(item.children);
+            return item.filteredChildren.length > 0;
+        }
+        
+        return hasAccess;
+    });
+};
+
 
     const filteredNavigation = getFilteredNavigation();
 

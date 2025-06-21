@@ -33,7 +33,8 @@ import {
     Repeat,
     SquareKanban,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    TagIcon
 } from 'lucide-react';
 
 const navigationConfig = [
@@ -42,7 +43,7 @@ const navigationConfig = [
         title: 'Dashboard',
         icon: LayoutDashboard,
         path: (role) => {
-            switch(role) {
+            switch (role) {
                 case 'admin':
                     return '/dashboard/admin';
                 case 'supervisor':
@@ -68,9 +69,17 @@ const navigationConfig = [
         id: 'users',
         title: 'Users',
         icon: User,
-        path: 'admin/users',
+        path: 'dashboard/admin/users',
         roles: ['admin', 'supervisor']
     },
+    {
+        id: 'Loan-types',
+        title: 'Loan Types',
+        icon: TagIcon,
+        path: '/dashboard/admin/loan-types',
+        roles: ['admin', 'supervisor']
+    },
+
     {
         id: 'borrowers',
         title: 'Borrowers',
@@ -753,7 +762,7 @@ const navigationConfig = [
             },
             {
                 title: 'Loan Types',
-                path: '/admin/loan-types',
+                path: '/dashboard/admin/loan-types',
                 roles: ['admin', 'supervisor']
             },
             {

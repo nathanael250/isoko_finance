@@ -33,7 +33,9 @@ import {
     Repeat,
     SquareKanban,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    TagIcon,
+    HomeIcon
 } from 'lucide-react';
 
 const navigationConfig = [
@@ -42,7 +44,7 @@ const navigationConfig = [
         title: 'Dashboard',
         icon: LayoutDashboard,
         path: (role) => {
-            switch(role) {
+            switch (role) {
                 case 'admin':
                     return '/dashboard/admin';
                 case 'supervisor':
@@ -72,6 +74,13 @@ const navigationConfig = [
         roles: ['admin', 'supervisor']
     },
     {
+        id: 'Loan-types',
+        title: 'Loan Types',
+        icon: TagIcon,
+        path: '/dashboard/admin/loan-types',
+        roles: ['admin', 'supervisor']
+    },
+    {
         id: 'borrowers',
         title: 'Borrowers',
         icon: Contact,
@@ -80,7 +89,7 @@ const navigationConfig = [
         children: [
             {
                 title: 'All Borrowers',
-                path: '/borrowers',
+                path: '/dashboard/borrowers',
                 roles: ['admin', 'supervisor']
             },
             {
@@ -96,92 +105,253 @@ const navigationConfig = [
         ]
     },
     {
-        id: 'cashier-operations',
-        title: 'Cashier Operations',
-        icon: Banknote,
-        roles: ['cashier', 'admin', 'supervisor'],
-        hasDropdown: true,
-        children: [
-            {
-                title: 'Dashboard Overview',
-                path: '/dashboard/cashier',
-                roles: ['cashier', 'admin', 'supervisor']
-            },
-            {
-                title: 'Payments & Collections',
-                hasDropdown: true,
-                roles: ['cashier', 'admin', 'supervisor'],
-                children: [
-                    { title: 'Record Payment', path: '/cashier/record-payment', icon: DollarSign, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Payment History', path: '/cashier/payment-history', icon: History, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Due Collections', path: '/cashier/due-collections', icon: Clock, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Overdue Collections', path: '/cashier/overdue-collections', icon: AlertCircle, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Payment Receipts', path: '/cashier/payment-receipts', icon: Receipt, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Bulk Payments', path: '/cashier/bulk-payments', icon: Boxes, roles: ['cashier', 'admin', 'supervisor'] },
-                ]
-            },
-            {
-                title: 'Cash Management',
-                hasDropdown: true,
-                roles: ['cashier', 'admin', 'supervisor'],
-                children: [
-                    { title: 'Cash Count', path: '/cashier/cash-count', icon: Calculator, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Cash Position', path: '/cashier/cash-position', icon: PiggyBank, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Cash Deposits', path: '/cashier/cash-deposits', icon: Landmark, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Cash Withdrawals', path: '/cashier/cash-withdrawals', icon: CreditCard, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Vault Management', path: '/cashier/vault-management', icon: Lock, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Daily Cash Report', path: '/cashier/daily-cash-report', icon: FileText, roles: ['cashier', 'admin', 'supervisor'] },
-                ]
-            },
-            {
-                title: 'Loan Disbursements',
-                hasDropdown: true,
-                roles: ['cashier', 'admin', 'supervisor'],
-                children: [
-                    { title: 'Pending Disbursements', path: '/cashier/pending-disbursements', icon: SquareKanban, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Process Disbursement', path: '/cashier/process-disbursement', icon: CheckCircle, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Disbursement History', path: '/cashier/disbursement-history', icon: History, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Disbursement Reports', path: '/cashier/disbursement-reports', icon: BarChart, roles: ['cashier', 'admin', 'supervisor'] },
-                ]
-            },
-            {
-                title: 'Reports',
-                hasDropdown: true,
-                roles: ['cashier', 'admin', 'supervisor'],
-                children: [
-                    { title: 'Daily Collection Report', path: '/cashier/reports/daily-collection', icon: BarChart, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Cash Flow Report', path: '/cashier/reports/cash-flow', icon: TrendingUp, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Payment Summary Report', path: '/cashier/reports/payment-summary', icon: List, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Outstanding Dues Report', path: '/cashier/reports/outstanding-dues', icon: Clock, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Cashier Performance', path: '/cashier/reports/performance', icon: User, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Transaction Reports', path: '/cashier/reports/transactions', icon: Receipt, roles: ['cashier', 'admin', 'supervisor'] },
-                ]
-            },
-            {
-                title: 'Client Services',
-                hasDropdown: true,
-                roles: ['cashier', 'admin', 'supervisor'],
-                children: [
-                    { title: 'Client Lookup', path: '/cashier/client-lookup', icon: Search, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Account Balance', path: '/cashier/account-balance', icon: Wallet, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Payment Schedule', path: '/cashier/payment-schedule', icon: ClipboardList, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Client Statements', path: '/cashier/client-statements', icon: FileStack, roles: ['cashier', 'admin', 'supervisor'] },
-                ]
-            },
-            {
-                title: 'Settings & Tools',
-                hasDropdown: true,
-                roles: ['cashier', 'admin', 'supervisor'],
-                children: [
-                    { title: 'Receipt Settings', path: '/cashier/settings/receipts', icon: Settings, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Payment Methods', path: '/cashier/settings/payment-methods', icon: Cog, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Exchange Rates', path: '/cashier/settings/exchange-rates', icon: Repeat, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Calculator', path: '/cashier/calculator', icon: Calculator, roles: ['cashier', 'admin', 'supervisor'] },
-                    { title: 'Profile Settings', path: '/cashier/settings/profile', icon: User, roles: ['cashier', 'admin', 'supervisor'] },
-                ]
-            }
-        ]
-    },
+    id: 'cashier-operations',
+    title: 'Cashier Operations',
+    icon: Banknote,
+    roles: ['cashier'],
+    hasDropdown: true,
+    children: [
+        {
+            title: 'Dashboard Overview',
+            path: '/dashboard/cashier',
+            icon: HomeIcon,
+            roles: ['cashier', 'admin', 'supervisor']
+        },
+        {
+            title: 'Transactions',
+            path: '/dashboard/cashier/transactions',
+            icon: DollarSign,
+            roles: ['cashier', 'admin', 'supervisor']
+        },
+        {
+            title: 'Payment Records',
+            path: '/dashboard/cashier/payments',
+            icon: Receipt,
+            roles: ['cashier', 'admin', 'supervisor']
+        },
+        {
+            title: 'Daily Reports',
+            path: '/dashboard/cashier/reports',
+            icon: FileText,
+            roles: ['cashier', 'admin', 'supervisor']
+        }
+    ]
+},
+
+    // {
+    //     id: 'cashier-operations',
+    //     title: 'Cashier Operations',
+    //     icon: Banknote,
+    //     roles: ['cashier', 'admin', 'supervisor'],
+    //     hasDropdown: true,
+    //     children: [
+    //         // Dashboard
+    //         {
+    //             title: 'Dashboard Overview',
+    //             path: '/dashboard/cashier',
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+
+    //         // Payments & Collections (flattened)
+    //         {
+    //             title: 'Record Payment',
+    //             path: '/dashboard/cashier/record-payment',
+    //             icon: DollarSign,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Payment History',
+    //             path: '/dashboard/cashier/payment-history',
+    //             icon: History,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Due Collections',
+    //             path: '/dashboard/cashier/due-collections',
+    //             icon: Clock,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Overdue Collections',
+    //             path: '/dashboard/cashier/overdue-collections',
+    //             icon: AlertCircle,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Payment Receipts',
+    //             path: '/dashboard/cashier/payment-receipts',
+    //             icon: Receipt,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Bulk Payments',
+    //             path: '/dashboard/cashier/bulk-payments',
+    //             icon: Boxes,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+
+    //         // Cash Management (flattened)
+    //         {
+    //             title: 'Cash Count',
+    //             path: '/dashboard/cashier/cash-count',
+    //             icon: Calculator,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Cash Position',
+    //             path: '/dashboard/cashier/cash-position',
+    //             icon: PiggyBank,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Cash Deposits',
+    //             path: '/dashboard/cashier/cash-deposits',
+    //             icon: Landmark,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Cash Withdrawals',
+    //             path: '/dashboard/cashier/cash-withdrawals',
+    //             icon: CreditCard,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Vault Management',
+    //             path: '/dashboard/cashier/vault-management',
+    //             icon: Lock,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Daily Cash Report',
+    //             path: '/dashboard/cashier/daily-cash-report',
+    //             icon: FileText,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+
+    //         // Loan Disbursements (flattened)
+    //         {
+    //             title: 'Pending Disbursements',
+    //             path: '/dashboard/cashier/pending-disbursements',
+    //             icon: SquareKanban,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Process Disbursement',
+    //             path: '/dashboard/cashier/process-disbursement',
+    //             icon: CheckCircle,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Disbursement History',
+    //             path: '/dashboard/cashier/disbursement-history',
+    //             icon: History,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Disbursement Reports',
+    //             path: '/dashboard/cashier/disbursement-reports',
+    //             icon: BarChart,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+
+    //         // Reports (flattened)
+    //         {
+    //             title: 'Daily Collection Report',
+    //             path: '/dashboard/cashier/reports/daily-collection',
+    //             icon: BarChart,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Cash Flow Report',
+    //             path: '/dashboard/cashier/reports/cash-flow',
+    //             icon: TrendingUp,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Payment Summary Report',
+    //             path: '/dashboard/cashier/reports/payment-summary',
+    //             icon: List,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Outstanding Dues Report',
+    //             path: '/dashboard/cashier/reports/outstanding-dues',
+    //             icon: Clock,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Cashier Performance',
+    //             path: '/dashboard/cashier/reports/performance',
+    //             icon: User,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Transaction Reports',
+    //             path: '/dashboard/cashier/reports/transactions',
+    //             icon: Receipt,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+
+    //         // Client Services (flattened)
+    //         {
+    //             title: 'Client Lookup',
+    //             path: '/dashboard/cashier/client-lookup',
+    //             icon: Search,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Account Balance',
+    //             path: '/dashboard/cashier/account-balance',
+    //             icon: Wallet,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Payment Schedule',
+    //             path: '/dashboard/cashier/payment-schedule',
+    //             icon: ClipboardList,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Client Statements',
+    //             path: '/dashboard/cashier/client-statements',
+    //             icon: FileStack,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+
+    //         // Settings & Tools (flattened)
+    //         {
+    //             title: 'Receipt Settings',
+    //             path: '/dashboard/cashier/settings/receipts',
+    //             icon: Settings,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Payment Methods',
+    //             path: '/dashboard/cashier/settings/payment-methods',
+    //             icon: Cog,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Exchange Rates',
+    //             path: '/dashboard/cashier/settings/exchange-rates',
+    //             icon: Repeat,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Calculator',
+    //             path: '/dashboard/cashier/calculator',
+    //             icon: Calculator,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         },
+    //         {
+    //             title: 'Profile Settings',
+    //             path: '/dashboard/cashier/settings/profile',
+    //             icon: User,
+    //             roles: ['cashier', 'admin', 'supervisor']
+    //         }
+    //     ]
+    // },
+
     {
         id: 'loans',
         title: 'Loans',
