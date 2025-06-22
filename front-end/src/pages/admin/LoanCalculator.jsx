@@ -618,9 +618,9 @@ const LoanCalculator = () => {
           <div className="mt-8 flex justify-end">
             <button
               type="submit"
-              className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-primary/90"
             >
-              Calculate Loan
+              Calculate Loanff
             </button>
           </div>
         </form>
