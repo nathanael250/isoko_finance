@@ -90,7 +90,7 @@ export const loansAPI = {
     update: (id, data) => api.put(`/loans/${id}`, data),
     updateStatus: (id, data) => api.put(`/loans/${id}/status`, data),
     getMyLoans: (params) => api.get('/loans/my-loans', { params }),
-    
+
     // Schedule and repayment methods
     getDueLoans: (params) => {
         const queryString = new URLSearchParams(params).toString();
@@ -102,7 +102,7 @@ export const loansAPI = {
             responseType: 'blob'
         });
     },
-    
+
     // New methods for loan details tabs
     getRepayments: (loanId) => api.get(`/loans/${loanId}/repayments`),
     getSchedule: (loanId) => api.get(`/loans/${loanId}/schedule`),
@@ -251,11 +251,11 @@ export const noRepaymentAPI = {
         const queryString = new URLSearchParams(cleanParams).toString();
         return api.get(`/no-repayment?${queryString}`);
     },
-    
+
     getLoanDetails: (loanId) => {
         return api.get(`/no-repayment/${loanId}`);
     },
-    
+
     getAnalytics: (params) => {
         const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
             if (value !== '' && value !== null && value !== undefined) {
@@ -266,15 +266,15 @@ export const noRepaymentAPI = {
         const queryString = new URLSearchParams(cleanParams).toString();
         return api.get(`/no-repayment/analytics?${queryString}`);
     },
-    
+
     createRecoveryAction: (loanId, data) => {
         return api.post(`/no-repayment/${loanId}/recovery-action`, data);
     },
-    
+
     flagAsFraud: (loanId, data) => {
         return api.post(`/no-repayment/${loanId}/flag-fraud`, data);
     },
-    
+
     generateReport: (params) => {
         const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
             if (value !== '' && value !== null && value !== undefined) {
@@ -294,7 +294,7 @@ export const noRepaymentAPI = {
 export const pastMaturityAPI = {
     // Get dashboard summary
     getDashboardSummary: () => api.get('/past-maturity/dashboard'),
-    
+
     // Get loans by days past maturity
     getLoansByDays: (params) => {
         const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
@@ -306,10 +306,10 @@ export const pastMaturityAPI = {
         const queryString = new URLSearchParams(cleanParams).toString();
         return api.get(`/past-maturity/loans?${queryString}`);
     },
-    
+
     // Get branch summary
     getBranchSummary: () => api.get('/past-maturity/branch-summary'),
-    
+
     // Get officer summary
     getOfficerSummary: (params) => {
         const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
@@ -321,10 +321,10 @@ export const pastMaturityAPI = {
         const queryString = new URLSearchParams(cleanParams).toString();
         return api.get(`/past-maturity/officer-summary?${queryString}`);
     },
-    
+
     // Get common filters
     getCommonFilters: () => api.get('/past-maturity/common-filters'),
-    
+
     // Get day breakdown
     getDayBreakdown: (params) => {
         const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
@@ -336,7 +336,7 @@ export const pastMaturityAPI = {
         const queryString = new URLSearchParams(cleanParams).toString();
         return api.get(`/past-maturity/day-breakdown?${queryString}`);
     },
-    
+
     // Generate report
     generateReport: (params) => {
         const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
@@ -375,7 +375,7 @@ export const cashierAPI = {
         return api.get(`/cashier/transactions/recent?${queryString}`);
     },
     getDueTodayLoans: () => api.get('/cashier/loans/due-today'),
-    
+
     // ADD THESE MISSING METHODS:
     getRecentPayments: (params) => {
         const cleanParams = Object.entries(params || {}).reduce((acc, [key, value]) => {
@@ -398,7 +398,7 @@ export const cashierAPI = {
         return api.get(`/cashier/loans/search?${queryString}`);
     },
     recordPayment: (data) => api.post('/cashier/payments/record', data),
-    
+
     // Keep your existing methods
     processPayment: (paymentData) => api.post('/cashier/payments', paymentData),
     reversePayment: (paymentId, reason) => api.put(`/cashier/payments/${paymentId}/reverse`, { reason }),
@@ -415,7 +415,7 @@ export const cashierAPI = {
 export const loanTypesAPI = {
     getLoanTypes: (params = {}) => {
 
-        
+
         // Clean params - remove empty strings, null, and undefined values
         const cleanParams = Object.entries(params).reduce((acc, [key, value]) => {
             if (value !== '' && value !== null && value !== undefined) {
@@ -424,7 +424,7 @@ export const loanTypesAPI = {
             return acc;
         }, {});
 
-        
+
         return api.get('/loan-types', { params: cleanParams });
     },
     createLoanType: (data) => api.post('/loan-types', data),
@@ -432,4 +432,25 @@ export const loanTypesAPI = {
     updateLoanType: (id, data) => api.put(`/loan-types/${id}`, data),
     deleteLoanType: (id) => api.delete(`/loan-types/${id}`),
 };
+
+
+// Add this at the end of your existing api.js file, before the final export or at the very end
+
+// Chart API - Add this section
+export const chartAPI = {
+    getMonthlyLoanReleases: (months = 12) => 
+        api.get(`/loans/stats/monthly-releases?months=${months}`),
+
+    getLoanStatusDistribution: () => 
+        api.get('/loans/stats/status-distribution'),
+
+    getMonthlyCollections: (months = 12) => 
+        api.get(`/loans/stats/monthly-collections?months=${months}`),
+
+    getOutstandingTrends: (months = 12) => 
+        api.get(`/loans/stats/outstanding-trends?months=${months}`)
+};
+
+
+
 

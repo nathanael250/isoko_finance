@@ -14,7 +14,13 @@ const {
   getLoanSchedule,
   getLoanDocuments,
   uploadLoanDocument,
-  getMyLoans
+  getMyLoans,
+
+
+  getMonthlyLoanReleases,
+  getLoanStatusDistribution,
+  getMonthlyCollections,
+  getOutstandingTrends
 } = require('../controllers/loanController');
 
 // Import middleware
@@ -119,5 +125,27 @@ router.get('/:id/documents', protect, getLoanDocuments);
 // @desc    Upload loan document
 // @access  Private
 router.post('/documents/upload', protect, upload.single('file'), uploadLoanDocument);
+
+
+// Chart data routes
+// @route   GET /api/loans/stats/monthly-releases
+// @desc    Get monthly loan releases data for charts
+// @access  Private
+router.get('/stats/monthly-releases', protect, getMonthlyLoanReleases);
+
+// @route   GET /api/loans/stats/status-distribution
+// @desc    Get loan status distribution for pie chart
+// @access  Private
+router.get('/stats/status-distribution', protect, getLoanStatusDistribution);
+
+// @route   GET /api/loans/stats/monthly-collections
+// @desc    Get monthly collections data for charts
+// @access  Private
+router.get('/stats/monthly-collections', protect, getMonthlyCollections);
+
+// @route   GET /api/loans/stats/outstanding-trends
+// @desc    Get outstanding trends data for charts
+// @access  Private
+router.get('/stats/outstanding-trends', protect, getOutstandingTrends);
 
 module.exports = router;

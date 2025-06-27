@@ -23,9 +23,242 @@ import {
 } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 
+// Import Recharts components directly
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    PieChart as RechartsPieChart,
+    Pie,
+    Cell,
+    LineChart,
+    Line,
+    ResponsiveContainer
+} from 'recharts';
+
 import { dashboardAPI } from '../../services/api';
 
-// StatCard component
+// Create a simple chart API object for now
+const chartAPI = {
+    getMonthlyLoanReleases: async (months = 12) => {
+        try {
+            const response = await fetch(`/api/loans/stats/monthly-releases?months=${months}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching monthly releases:', error);
+            return { data: { data: [] } };
+        }
+    },
+    
+    getLoanStatusDistribution: async () => {
+        try {
+            const response = await fetch('/api/loans/stats/status-distribution', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching status distribution:', error);
+            return { data: { data: [] } };
+        }
+    },
+    
+    getMonthlyCollections: async (months = 12) => {
+        try {
+            const response = await fetch(`/api/loans/stats/monthly-collections?months=${months}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching monthly collections:', error);
+            return { data: { data: [] } };
+        }
+    },
+    
+    getOutstandingTrends: async (months = 12) => {
+        try {
+            const response = await fetch(`/api/loans/stats/outstanding-trends?months=${months}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching outstanding trends:', error);
+            return { data: { data: [] } };
+        }
+    }
+};
+
+// Inline Chart Components
+const MonthlyLoanReleasesChart = ({ data, loading }) => {
+    if (loading) {
+        return (
+            <div className="h-64 bg-gray-50 rounded flex items-center justify-center animate-pulse">
+                <div className="text-gray-400 text-sm">Loading chart...</div>
+            </div>
+        );
+    }
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="h-64 bg-gray-50 rounded flex items-center justify-center">
+                <div className="text-gray-400 text-sm">No data available</div>
+            </div>
+        );
+    }
+
+    const formatMonth = (monthStr) => {
+        try {
+            const [year, month] = monthStr.split('-');
+            const date = new Date(year, month - 1);
+            return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        } catch {
+            return monthStr;
+        }
+    };
+
+    const chartData = data.map(item => ({
+        ...item,
+        month: formatMonth(item.month),
+        total_amount: parseFloat(item.total_amount) || 0
+    }));
+
+    return (
+        <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip 
+                    formatter={(value, name) => [
+                        name === 'total_loans' ? value : `$${parseFloat(value).toLocaleString()}`,
+                        name === 'total_loans' ? 'Total Loans' : 'Total Amount'
+                    ]}
+                />
+                <Legend />
+                <Bar dataKey="total_loans" fill="#3b82f6" name="Total Loans" />
+                <Bar dataKey="approved_loans" fill="#10b981" name="Approved Loans" />
+            </BarChart>
+        </ResponsiveContainer>
+    );
+};
+
+const LoanStatusPieChart = ({ data, loading }) => {
+    if (loading) {
+        return (
+            <div className="h-64 bg-gray-50 rounded flex items-center justify-center animate-pulse">
+                <div className="text-gray-400 text-sm">Loading chart...</div>
+            </div>
+        );
+    }
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="h-64 bg-gray-50 rounded flex items-center justify-center">
+                <div className="text-gray-400 text-sm">No data available</div>
+            </div>
+        );
+    }
+
+    const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
+    const chartData = data.map(item => ({
+        name: item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' '),
+        value: parseInt(item.count),
+        amount: parseFloat(item.total_amount) || 0
+    }));
+
+    return (
+        <ResponsiveContainer width="100%" height={250}>
+            <RechartsPieChart>
+                <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                >
+                    {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                </Pie>
+                <Tooltip formatter={(value) => [value, 'Count']} />
+            </RechartsPieChart>
+        </ResponsiveContainer>
+    );
+};
+
+const MonthlyCollectionsChart = ({ data, loading }) => {
+    if (loading) {
+        return (
+            <div className="h-64 bg-gray-50 rounded flex items-center justify-center animate-pulse">
+                <div className="text-gray-400 text-sm">Loading chart...</div>
+            </div>
+        );
+    }
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="h-64 bg-gray-50 rounded flex items-center justify-center">
+                <div className="text-gray-400 text-sm">No collection data available</div>
+            </div>
+        );
+    }
+
+    const formatMonth = (monthStr) => {
+        try {
+            const [year, month] = monthStr.split('-');
+            const date = new Date(year, month - 1);
+            return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        } catch {
+            return monthStr;
+        }
+    };
+
+    const chartData = data.map(item => ({
+        ...item,
+        month: formatMonth(item.month),
+        total_collected: parseFloat(item.total_collected) || 0,
+        principal_collected: parseFloat(item.principal_collected) || 0,
+        interest_collected: parseFloat(item.interest_collected) || 0
+    }));
+
+    return (
+        <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`$${parseFloat(value).toLocaleString()}`, 'Amount']} />
+                <Legend />
+                <Line type="monotone" dataKey="total_collected" stroke="#10b981" name="Total Collections" />
+                <Line type="monotone" dataKey="principal_collected" stroke="#3b82f6" name="Principal" />
+                <Line type="monotone" dataKey="interest_collected" stroke="#f59e0b" name="Interest" />
+            </LineChart>
+        </ResponsiveContainer>
+    );
+};
+
+// StatCard component (keep your existing one)
 const StatCard = ({ 
   title, 
   value, 
@@ -61,16 +294,15 @@ const StatCard = ({
   const formatCurrency = (val) => {
     if (typeof val === 'number') {
       if (val >= 1000000) {
-        return `$${(val / 1000000).toFixed(1)}M`;
+        return `${(val / 1000000).toFixed(1)}M`;
       } else if (val >= 1000) {
-        return `$${(val / 1000).toFixed(1)}K`;
+        return `${(val / 1000).toFixed(1)}K`;
       }
-      return `$${val.toLocaleString()}`;
+      return `${val.toLocaleString()}`;
     }
     return val;
   };
 
-  // Use currency formatting for certain titles
   const shouldFormatAsCurrency = title.toLowerCase().includes('savings') || 
                                  title.toLowerCase().includes('collections') ||
                                  title.toLowerCase().includes('portfolio');
@@ -94,7 +326,8 @@ const ChartCard = ({
   title, 
   icon: Icon, 
   color, 
-  loading = false 
+  loading = false,
+  children 
 }) => {
   if (loading) {
     return (
@@ -104,7 +337,7 @@ const ChartCard = ({
           <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
           <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
         </div>
-        <div className="h-32 bg-gray-50 rounded flex items-center justify-center animate-pulse">
+        <div className="h-64 bg-gray-50 rounded flex items-center justify-center animate-pulse">
           <div className="text-gray-400 text-xs">Loading chart...</div>
         </div>
       </div>
@@ -118,8 +351,8 @@ const ChartCard = ({
         <Icon className={`p-1 rounded text-white w-6 h-6 ${color.replace('bg-', 'bg-')}`} />
         <h3 className="text-gray-900 font-medium text-sm">{title}</h3>
       </div>
-      <div className="h-32 bg-gray-50 rounded flex items-center justify-center">
-        <span className="text-gray-500 text-xs">Chart Placeholder</span>
+      <div className="h-64">
+        {children}
       </div>
     </div>
   );
@@ -129,11 +362,62 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [dashboardData, setDashboardData] = useState(null);
+        const [dashboardData, setDashboardData] = useState(null);
     const [activities, setActivities] = useState([]);
     const [performance, setPerformance] = useState(null);
+    
+    // Chart data states
+    const [chartData, setChartData] = useState({
+        monthlyReleases: [],
+        statusDistribution: [],
+        monthlyCollections: [],
+        outstandingTrends: []
+    });
+    const [chartsLoading, setChartsLoading] = useState(true);
 
-    // Fetch dashboard data
+    // Fetch chart data
+// Update the fetchChartData function (around line 300)
+const fetchChartData = async () => {
+    try {
+        setChartsLoading(true);
+        
+        const [
+            monthlyReleasesResponse,
+            statusDistributionResponse,
+            monthlyCollectionsResponse,
+            outstandingTrendsResponse
+        ] = await Promise.all([
+            chartAPI.getMonthlyLoanReleases(12),
+            chartAPI.getLoanStatusDistribution(),
+            chartAPI.getMonthlyCollections(12),
+            chartAPI.getOutstandingTrends(12)
+        ]);
+
+        setChartData({
+            monthlyReleases: monthlyReleasesResponse.data?.data || [],
+            statusDistribution: statusDistributionResponse.data?.data || [],
+            monthlyCollections: monthlyCollectionsResponse.data?.data || [],
+            outstandingTrends: outstandingTrendsResponse.data?.data || []
+        });
+
+        console.log('✅ Chart data loaded successfully');
+
+    } catch (error) {
+        console.error('❌ Error fetching chart data:', error);
+        // Keep empty arrays as fallback
+        setChartData({
+            monthlyReleases: [],
+            statusDistribution: [],
+            monthlyCollections: [],
+            outstandingTrends: []
+        });
+    } finally {
+        setChartsLoading(false);
+    }
+};
+
+
+    // Fetch dashboard data (keep your existing function)
     const fetchDashboardData = async () => {
         try {
             setError(null);
@@ -222,7 +506,10 @@ const AdminDashboard = () => {
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
-            await fetchDashboardData();
+            await Promise.all([
+                fetchDashboardData(),
+                fetchChartData()
+            ]);
             setLoading(false);
         };
 
@@ -232,7 +519,10 @@ const AdminDashboard = () => {
     // Refresh handler
     const handleRefresh = async () => {
         setRefreshing(true);
-        await fetchDashboardData();
+        await Promise.all([
+            fetchDashboardData(),
+            fetchChartData()
+        ]);
         setRefreshing(false);
     };
 
@@ -461,7 +751,7 @@ const AdminDashboard = () => {
                         {/* Monthly Goal */}
                         <div className="flex flex-col items-center">
                             {loading ? (
-                                <div className="w-16 h-16 bg-gray-200 rounded-full animate-pulse mb-2"></div>
+                                                                <div className="w-16 h-16 bg-gray-200 rounded-full animate-pulse mb-2"></div>
                             ) : (
                                 <CircularProgressbar 
                                     value={monthlyPercentage} 
@@ -507,7 +797,7 @@ const AdminDashboard = () => {
                                 />
                             )}
                             <h3 className="text-gray-900 font-medium text-sm">Yearly</h3>
-                                                        <p className="text-gray-500 text-xs">2,250 of 5,000 loans</p>
+                            <p className="text-gray-500 text-xs">2,250 of 5,000 loans</p>
                         </div>
                     </div>
                 </div>
@@ -571,7 +861,7 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* Charts Section */}
+            {/* Charts Section - Updated with real charts */}
             <div className="mb-6">
                 <div className="mb-4">
                     <h2 className="text-xl font-bold text-gray-900">Analytics & Reports</h2>
@@ -583,64 +873,73 @@ const AdminDashboard = () => {
                         title="Loans Released - Monthly"
                         icon={BarChart3}
                         color="bg-blue-600"
-                        loading={loading}
-                    />
+                        loading={chartsLoading}
+                    >
+                        <MonthlyLoanReleasesChart 
+                            data={chartData.monthlyReleases} 
+                            loading={chartsLoading} 
+                        />
+                    </ChartCard>
 
                     <ChartCard
                         title="Loan Collection - Monthly"
                         icon={TrendingUp}
                         color="bg-green-600"
-                        loading={loading}
-                    />
+                        loading={chartsLoading}
+                    >
+                        <MonthlyCollectionsChart 
+                            data={chartData.monthlyCollections} 
+                            loading={chartsLoading} 
+                        />
+                    </ChartCard>
 
                     <ChartCard
-                        title="Collection vs Due Loans"
+                        title="Loan Status Distribution"
                         icon={PieChart}
                         color="bg-purple-600"
-                        loading={loading}
-                    />
+                        loading={chartsLoading}
+                    >
+                        <LoanStatusPieChart 
+                            data={chartData.statusDistribution} 
+                            loading={chartsLoading} 
+                        />
+                    </ChartCard>
 
                     <ChartCard
                         title="Open Loans - Monthly"
                         icon={BarChart3}
                         color="bg-indigo-600"
-                        loading={loading}
-                    />
+                        loading={chartsLoading}
+                    >
+                        <MonthlyLoanReleasesChart 
+                            data={chartData.monthlyReleases} 
+                            loading={chartsLoading} 
+                        />
+                    </ChartCard>
 
                     <ChartCard
                         title="Collections vs Due (Cumulative)"
                         icon={TrendingUp}
                         color="bg-yellow-600"
-                        loading={loading}
-                    />
+                        loading={chartsLoading}
+                    >
+                        <MonthlyCollectionsChart 
+                            data={chartData.monthlyCollections}
+                            loading={chartsLoading} 
+                        />
+                    </ChartCard>
 
                     <ChartCard
                         title="Collection vs Released - Monthly"
                         icon={BarChart3}
                         color="bg-teal-600"
-                        loading={loading}
-                    />
-
-                    <ChartCard
-                        title="Total Outstanding - Monthly"
-                        icon={TrendingUp}
-                        color="bg-red-600"
-                        loading={loading}
-                    />
-
-                    <ChartCard
-                        title="Principal Outstanding - Monthly"
-                        icon={BarChart3}
-                        color="bg-orange-600"
-                        loading={loading}
-                    />
-
-                    <ChartCard
-                        title="Interest Outstanding - Monthly"
-                        icon={TrendingUp}
-                        color="bg-pink-600"
-                        loading={loading}
-                    />
+                        loading={chartsLoading}
+                    >
+                        <MonthlyLoanReleasesChart 
+                            data={chartData.monthlyReleases}
+                            loading={chartsLoading} 
+                        />
+                    </ChartCard>
                 </div>
             </div>
 

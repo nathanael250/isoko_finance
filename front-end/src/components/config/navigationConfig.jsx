@@ -268,8 +268,12 @@ const navigationConfig = [
                 roles: ['admin', 'supervisor']
             },
             {
-                title: 'Loan Calculator',
-                path: 'loan-officer/calculator',
+                title: 'Loan Calculatorsdsd',
+                // Use different paths for different roles
+                path: (role) => {
+                    if (role === 'admin') return 'admin/loan-calculator';
+                    return 'loan-officer/calculator';
+                },
                 roles: ['admin', 'supervisor', 'loan-officer']
             },
             {
