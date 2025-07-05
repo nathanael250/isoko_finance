@@ -21,4 +21,8 @@ router.get('/loans', getAssignedLoans);
 // @access  Private
 router.get('/borrowers', getAssignedBorrowers);
 
+router.get('/stats/:officerId', getDashboardStats);
+router.get('/loans/:officerId', getAssignedLoans);
+router.get('/borrowers/:officerId', getAssignedBorrowers);
+
 module.exports = router;

@@ -73,6 +73,20 @@ const navigationConfig = [
         path: 'admin/users',
         roles: ['admin', 'supervisor']
     },
+    // {
+    //     id: 'user-details',
+    //     title: 'User Details',
+    //     icon: User,
+    //     path: 'admin/users/:id',
+    //     roles: ['admin', 'supervisor']
+    // },
+    // {
+    //     id: 'edit-user',
+    //     title: 'Edit User',
+    //     icon: User,
+    //     path: 'admin/users/:id/edit',
+    //     roles: ['admin', 'supervisor']
+    // },
     {
         id: 'Loan-types',
         title: 'Loan Types',

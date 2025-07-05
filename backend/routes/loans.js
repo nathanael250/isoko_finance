@@ -20,7 +20,11 @@ const {
   getMonthlyLoanReleases,
   getLoanStatusDistribution,
   getMonthlyCollections,
-  getOutstandingTrends
+  getOutstandingTrends,
+
+  getLoanOfficerStats,
+  getLoansByOfficer,
+  getCollectionsByOfficer
 } = require('../controllers/loanController');
 
 // Import middleware
@@ -147,5 +151,12 @@ router.get('/stats/monthly-collections', protect, getMonthlyCollections);
 // @desc    Get outstanding trends data for charts
 // @access  Private
 router.get('/stats/outstanding-trends', protect, getOutstandingTrends);
+
+// @route   GET /api/loans/officer/:officerId/stats
+// @desc    Get loan officer statistics
+router.get('/officer/:officerId/stats', protect, getLoanOfficerStats);
+// @route   GET /api/loans/officer/:officerId
+// @desc    Get loans assigned to a specific loan officer
+router.get('/officer/:officerId', protect, getLoansByOfficer);
 
 module.exports = router;

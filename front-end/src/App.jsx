@@ -36,6 +36,8 @@ const PrincipalOutstandingView = React.lazy(() => import('./pages/admin/Principa
 const LoanTypesManagement = React.lazy(() => import('./pages/admin/LoanTypesManagement'));
 const LoanTypeConfiguration = React.lazy(() => import('./pages/admin/LoanTypeConfiguration'));
 const LoanTypeDetails = React.lazy(() => import('./pages/admin/LoanTypeDetails'));
+const UserDetails = React.lazy(() => import('./pages/admin/UserDetails'));
+const EditUser = React.lazy(() => import('./pages/admin/EditUser'));
 
 
 // Supervisor Pages
@@ -130,6 +132,26 @@ function AppContent() {
               <ProtectedRoute allowedRoles={['admin']}>
                 <React.Suspense fallback={<LoadingSpinner />}>
                   <UserManagement />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/users/:id"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <UserDetails />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/users/:id/edit"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <EditUser />
                 </React.Suspense>
               </ProtectedRoute>
             }

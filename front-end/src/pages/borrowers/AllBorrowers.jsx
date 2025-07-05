@@ -15,7 +15,10 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  UsersIcon,
+  CreditCardIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 
@@ -102,478 +105,622 @@ const AllBorrowers = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen bg-gray-200">
+        <div className="p-6 max-w-7xl mx-auto">
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-indigo-500 border-t-transparent mx-auto mb-4"></div>
+              <span className="text-gray-600 font-medium">Loading borrowers...</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Borrowers Management
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Manage and track all your borrowers in one place
-              </p>
+    <div className="min-h-screen bg-gray-200">
+      <div className="p-6 max-w-7xl mx-auto space-y-8">
+        {/* Advanced Header */}
+        <div className="bg-gradient-to-br from-white to-gray-50 shadow-xl rounded-2xl p-8 border border-gray-100 relative overflow-hidden">
+          {/* Background Pattern */}
+          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-indigo-100/30 to-blue-100/30 rounded-full -translate-y-20 translate-x-20"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-purple-100/20 to-pink-100/20 rounded-full translate-y-16 -translate-x-16"></div>
+          
+          <div className="relative z-10">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-2xl shadow-lg shadow-indigo-500/25">
+                  <UsersIcon className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-4xl font-bold text-gray-900">
+                    Borrowers Management
+                  </h1>
+                  <p className="text-gray-600 mt-2 text-lg">
+                    Manage and track all your borrowers in one centralized location
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/dashboard/borrowers/add')}
+                className="inline-flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-indigo-500/25"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Add New Borrower
+              </button>
             </div>
-            <button
-              onClick={() => navigate('/dashboard/borrowers/add')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-            >
-              <PlusIcon className="w-5 h-5" />
-              Add New Borrower
-            </button>
           </div>
         </div>
-      </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md p-4">
-          <div className="flex">
-            <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
-              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                <p>{error}</p>
+        {/* Error Message */}
+        {error && (
+          <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-6 shadow-lg">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
               </div>
-              <div className="mt-4">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-red-800">Error Loading Borrowers</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>{error}</p>
+                </div>
+                <div className="mt-4">
+                  <button
+                    onClick={fetchBorrowers}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all duration-200 shadow-lg hover:shadow-red-500/25"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Advanced Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-100/30 to-blue-200/30 rounded-full -translate-y-10 translate-x-10 group-hover:scale-110 transition-transform duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/25">
+                  <UserIcon className="h-6 w-6 text-white" />
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-600">Total Borrowers</p>
+                  <p className="text-3xl font-bold text-gray-900">{borrowers.length}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2 bg-gray-200 rounded-full flex-1">
+                  <div className="h-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full" style={{width: '100%'}}></div>
+                </div>
+                <span className="text-xs font-medium text-blue-600">100%</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-green-100/30 to-green-200/30 rounded-full -translate-y-10 translate-x-10 group-hover:scale-110 transition-transform duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg shadow-green-500/25">
+                  <CheckCircleIcon className="h-6 w-6 text-white" />
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-600">Active Borrowers</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {borrowers.filter(b => (b.status || 'active') === 'active').length}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2 bg-gray-200 rounded-full flex-1">
+                  <div 
+                    className="h-2 bg-gradient-to-r from-green-500 to-green-600 rounded-full" 
+                    style={{width: `${borrowers.length > 0 ? (borrowers.filter(b => (b.status || 'active') === 'active').length / borrowers.length) * 100 : 0}%`}}
+                  ></div>
+                </div>
+                <span className="text-xs font-medium text-green-600">
+                  {borrowers.length > 0 ? Math.round((borrowers.filter(b => (b.status || 'active') === 'active').length / borrowers.length) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-red-100/30 to-red-200/30 rounded-full -translate-y-10 translate-x-10 group-hover:scale-110 transition-transform duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg shadow-red-500/25">
+                  <XCircleIcon className="h-6 w-6 text-white" />
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-600">Inactive Borrowers</p>
+                  <p className="text-3xl font-bold text-red-600">
+                    {borrowers.filter(b => b.status === 'inactive').length}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2 bg-gray-200 rounded-full flex-1">
+                  <div 
+                    className="h-2 bg-gradient-to-r from-red-500 to-red-600 rounded-full" 
+                    style={{width: `${borrowers.length > 0 ? (borrowers.filter(b => b.status === 'inactive').length / borrowers.length) * 100 : 0}%`}}
+                  ></div>
+                </div>
+                <span className="text-xs font-medium text-red-600">
+                  {borrowers.length > 0 ? Math.round((borrowers.filter(b => b.status === 'inactive').length / borrowers.length) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-purple-100/30 to-purple-200/30 rounded-full -translate-y-10 translate-x-10 group-hover:scale-110 transition-transform duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg shadow-purple-500/25">
+                  <ChartBarIcon className="h-6 w-6 text-white" />
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-600">This Month</p>
+                  <p className="text-3xl font-bold text-purple-600">
+                    {borrowers.filter(b => {
+                      const createdDate = new Date(b.created_at || b.createdAt);
+                      const currentMonth = new Date().getMonth();
+                      const currentYear = new Date().getFullYear();
+                      return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
+                    }).length}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2 bg-gray-200 rounded-full flex-1">
+                  <div className="h-2 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full" style={{width: '75%'}}></div>
+                </div>
+                <span className="text-xs font-medium text-purple-600">New</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Advanced Filters & Search */}
+        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-100/20 to-blue-100/20 rounded-full -translate-y-16 translate-x-16"></div>
+          
+          <div className="relative z-10">
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Search */}
+              <div className="flex-1">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search by name, ID, or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-xl bg-white/60 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500"
+                  />
+                </div>
+              </div>
+
+              {/* Status Filter */}
+              <div className="lg:w-64">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <FunnelIcon className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-xl bg-white/60 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-gray-900 appearance-none"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex bg-gray-100 rounded-xl p-1">
                 <button
-                  onClick={fetchBorrowers}
-                  className="bg-red-100 dark:bg-red-800 px-3 py-2 rounded-md text-sm font-medium text-red-800 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-700"
+                  onClick={() => setViewMode('table')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                    viewMode === 'table'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 >
-                  Try Again
+                  Table
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                    viewMode === 'grid'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Grid
                 </button>
               </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <UserIcon className="h-6 w-6 text-gray-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-                    Total Borrowers
-                  </dt>
-                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
-                    {borrowers.length}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <CheckCircleIcon className="h-6 w-6 text-green-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-                    Active Borrowers
-                  </dt>
-                  <dd className="text-lg font-medium text-green-600">
-                    {borrowers.filter(b => (b.status || 'active') === 'active').length}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <XCircleIcon className="h-6 w-6 text-red-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-                    Inactive Borrowers
-                  </dt>
-                  <dd className="text-lg font-medium text-red-600">
-                    {borrowers.filter(b => b.status === 'inactive').length}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <DocumentTextIcon className="h-6 w-6 text-blue-400" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-                    Showing Results
-                  </dt>
-                  <dd className="text-lg font-medium text-blue-600">
-                    {filteredBorrowers.length}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search borrowers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 dark:text-white"
-            />
-          </div>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="inactive">Inactive</option>
-          </select>
-
-          {/* View Toggle */}
-          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-md p-1">
+        {/* Results Summary */}
+        <div className="flex items-center justify-between">
+          <p className="text-gray-600 font-medium">
+            Showing <span className="font-bold text-gray-900">{filteredBorrowers.length}</span> of{' '}
+            <span className="font-bold text-gray-900">{borrowers.length}</span> borrowers
+          </p>
+          {searchTerm && (
             <button
-              onClick={() => setViewMode('table')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'table'
-                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+              onClick={() => setSearchTerm('')}
+              className="text-indigo-600 hover:text-indigo-800 font-medium transition-colors duration-200"
             >
-              Table
+              Clear search
             </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Grid
-            </button>
+          )}
+        </div>
+
+        {/* Borrowers Content */}
+        {filteredBorrowers.length === 0 ? (
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="p-4 bg-gradient-to-r from-gray-100 to-gray-200 rounded-2xl inline-block mb-6">
+                <UsersIcon className="h-12 w-12 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                {searchTerm ? 'No borrowers found' : 'No borrowers yet'}
+              </h3>
+              <p className="text-gray-600 mb-6">
+                {searchTerm 
+                  ? 'Try adjusting your search criteria or filters.'
+                  : 'Get started by adding your first borrower to the system.'
+                }
+              </p>
+              {!searchTerm && (
+                <button
+                  onClick={() => navigate('/dashboard/borrowers/add')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-indigo-500/25"
+                >
+                  <PlusIcon className="w-5 h-5" />
+                  Add First Borrower
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-
-        {/* Results count */}
-        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-          Showing {filteredBorrowers.length} of {borrowers.length} borrowers
-        </div>
-      </div>
-
-      {/* Content */}
-      {viewMode === 'table' ? (
-        /* Table View */
-        <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Borrower
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Loans
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Last Updated
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredBorrowers.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center">
-                        <UserIcon className="w-12 h-12 text-gray-400 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                          No borrowers found
-                        </h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
-                          {borrowers.length === 0 
-                            ? 'Get started by adding your first borrower.' 
-                            : 'Try adjusting your search or filter criteria.'
-                          }
-                        </p>
-                        {borrowers.length === 0 && (
-                          <button
-                            onClick={() => navigate('/dashboard/borrowers/add')}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                          >
-                            <PlusIcon className="w-4 h-4" />
-                            Add Borrower
-                          </button>
-                        )}
-                      </div>
-                    </td>
+        ) : viewMode === 'table' ? (
+          /* Table View */
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Borrower
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Contact Info
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      ID Number
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Joined Date
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ) : (
-                  filteredBorrowers.map((borrower) => {
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredBorrowers.map((borrower, index) => {
+                    const name = getBorrowerName(borrower);
                     const { email, phone } = getBorrowerContact(borrower);
+                    const borrowerId = getBorrowerId(borrower);
+                    const status = borrower.status || 'active';
+
                     return (
-                      <tr key={borrower.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <tr key={borrower.id || index} className="hover:bg-gray-50/50 transition-colors duration-200">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10">
-                              <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                                <span className="text-sm font-medium text-indigo-600 dark:text-indigo-300">
-                                  {getBorrowerName(borrower).charAt(0).toUpperCase()}
-                                </span>
-                              </div>
+                          <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                              <span className="text-white font-bold text-sm">
+                                {name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                              </span>
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                {getBorrowerName(borrower)}
-                              </div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                ID: {getBorrowerId(borrower)}
-                              </div>
+                            <div>
+                              <div className="text-sm font-bold text-gray-900">{name}</div>
+                              <div className="text-sm text-gray-500">ID: {borrowerId}</div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="space-y-1">
                             {email && (
-                              <div className="flex items-center text-sm text-gray-900 dark:text-white">
-                                <EnvelopeIcon className="w-4 h-4 text-gray-400 mr-2" />
-                                <span className="truncate max-w-xs">{email}</span>
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <EnvelopeIcon className="h-4 w-4 text-gray-400" />
+                                {email}
                               </div>
                             )}
                             {phone && (
-                              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                                <PhoneIcon className="w-4 h-4 text-gray-400 mr-2" />
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <PhoneIcon className="h-4 w-4 text-gray-400" />
                                 {phone}
                               </div>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            (borrower.status || 'active') === 'active' 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : (borrower.status || 'active') === 'pending'
-                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                          <div className="text-sm font-medium text-gray-900">
+                            {borrower.national_id || borrower.id_number || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${
+                            status === 'active'
+                              ? 'bg-green-100 text-green-800'
+                              : status === 'inactive'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
                           }`}>
-                            {((borrower.status || 'active').charAt(0).toUpperCase() + (borrower.status || 'active').slice(1))}
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          <div>
-                            <div className="font-medium">
-                              {borrower.active_loans_count || borrower.loans_count || 0} Active
-                            </div>
-                            <div className="text-gray-500 dark:text-gray-400">
-                              {borrower.total_loans_count || 0} Total
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          <div className="flex items-center">
-                            <CalendarIcon className="w-4 h-4 mr-2" />
-                            {borrower.updated_at ? format(new Date(borrower.updated_at), 'MMM d, yyyy') : 'N/A'}
-                          </div>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {borrower.created_at || borrower.createdAt
+                            ? format(new Date(borrower.created_at || borrower.createdAt), 'MMM dd, yyyy')
+                            : 'N/A'
+                          }
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end space-x-2">
+                          <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => navigate(`/dashboard/borrowers/${borrower.id}`)}
-                              className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                              onClick={() => navigate(`/dashboard/borrowers/${borrower.id || borrower.client_id}`)}
+                              className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200"
                               title="View Details"
                             >
-                              <EyeIcon className="w-4 h-4" />
+                              <EyeIcon className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => navigate(`/dashboard/borrowers/${borrower.id}/edit`)}
-                              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                              onClick={() => navigate(`/dashboard/borrowers/${borrower.id || borrower.client_id}/edit`)}
+                              className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all duration-200"
                               title="Edit Borrower"
                             >
-                              <PencilIcon className="w-4 h-4" />
+                              <PencilIcon className="h-4 w-4" />
                             </button>
                           </div>
                         </td>
                       </tr>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        /* Grid View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredBorrowers.length === 0 ? (
-            <div className="col-span-full">
-              <div className="text-center py-12">
-                <UserIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                  No borrowers found
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {borrowers.length === 0 
-                    ? 'Get started by adding your first borrower.' 
-                    : 'Try adjusting your search or filter criteria.'
-                  }
-                </p>
-                {borrowers.length === 0 && (
-                  <div className="mt-6">
-                    <button
-                      onClick={() => navigate('/dashboard/borrowers/add')}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                    >
-                      <PlusIcon className="w-4 h-4" />
-                      Add First Borrower
-                    </button>
-                  </div>
-                )}
-              </div>
+                  })}
+                </tbody>
+              </table>
             </div>
-          ) : (
-            filteredBorrowers.map((borrower) => {
+          </div>
+        ) : (
+          /* Grid View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredBorrowers.map((borrower, index) => {
+              const name = getBorrowerName(borrower);
               const { email, phone } = getBorrowerContact(borrower);
+              const borrowerId = getBorrowerId(borrower);
+              const status = borrower.status || 'active';
+
               return (
-                <div key={borrower.id} className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow">
-                  <div className="p-6">
-                    {/* Card Header */}
+                <div
+                  key={borrower.id || index}
+                  className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all duration-300 group relative overflow-hidden"
+                >
+                  {/* Background Pattern */}
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-100/20 to-indigo-200/20 rounded-full -translate-y-10 translate-x-10 group-hover:scale-110 transition-transform duration-300"></div>
+                  
+                  <div className="relative z-10">
+                    {/* Header */}
                     <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center">
-                        <div className="h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                          <span className="text-lg font-medium text-indigo-600 dark:text-indigo-300">
-                            {getBorrowerName(borrower).charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="ml-3">
-                          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                            {getBorrowerName(borrower)}
-                          </h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            ID: {getBorrowerId(borrower)}
-                          </p>
-                        </div>
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                        <span className="text-white font-bold text-sm">
+                          {name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        </span>
                       </div>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        (borrower.status || 'active') === 'active' 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : (borrower.status || 'active') === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                      }`}>
-                        {((borrower.status || 'active').charAt(0).toUpperCase() + (borrower.status || 'active').slice(1))}
-                      </span>
+                                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${
+                          status === 'active'
+                            ? 'bg-green-100 text-green-800'
+                            : status === 'inactive'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </span>
+                    </div>
+
+                    {/* Borrower Info */}
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-gray-900 mb-1">{name}</h3>
+                      <p className="text-sm text-gray-500">ID: {borrowerId}</p>
                     </div>
 
                     {/* Contact Info */}
-                    <div className="space-y-2 mb-4">
+                    <div className="space-y-2 mb-6">
                       {email && (
-                        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                          <EnvelopeIcon className="w-4 h-4 mr-2 text-gray-400" />
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <div className="p-1 bg-blue-100 rounded">
+                            <EnvelopeIcon className="h-3 w-3 text-blue-600" />
+                          </div>
                           <span className="truncate">{email}</span>
                         </div>
                       )}
                       {phone && (
-                        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                          <PhoneIcon className="w-4 h-4 mr-2 text-gray-400" />
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <div className="p-1 bg-green-100 rounded">
+                            <PhoneIcon className="h-3 w-3 text-green-600" />
+                          </div>
                           <span>{phone}</span>
+                        </div>
+                      )}
+                      {(borrower.created_at || borrower.createdAt) && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <div className="p-1 bg-purple-100 rounded">
+                            <CalendarIcon className="h-3 w-3 text-purple-600" />
+                          </div>
+                          <span>
+                            Joined {format(new Date(borrower.created_at || borrower.createdAt), 'MMM dd, yyyy')}
+                          </span>
                         </div>
                       )}
                     </div>
 
-                    {/* Loan Stats */}
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Active Loans</p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {borrower.active_loans_count || borrower.loans_count || 0}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Total Loans</p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {borrower.total_loans_count || 0}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Last Updated */}
-                    <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4">
-                      <CalendarIcon className="w-4 h-4 mr-1" />
-                      Updated {borrower.updated_at ? format(new Date(borrower.updated_at), 'MMM d, yyyy') : 'N/A'}
-                    </div>
-
                     {/* Actions */}
-                    <div className="flex space-x-2">
+                    <div className="flex gap-2">
                       <button
-                        onClick={() => navigate(`/dashboard/borrowers/${borrower.id}`)}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        onClick={() => navigate(`/dashboard/borrowers/${borrower.id || borrower.client_id}`)}
+                        className="flex-1 px-3 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-lg text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
                       >
-                        <EyeIcon className="w-4 h-4" />
+                        <EyeIcon className="h-4 w-4" />
                         View
                       </button>
                       <button
-                        onClick={() => navigate(`/dashboard/borrowers/${borrower.id}/edit`)}
-                        className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        onClick={() => navigate(`/dashboard/borrowers/${borrower.id || borrower.client_id}/edit`)}
+                        className="px-3 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-green-500/25 flex items-center justify-center"
                       >
-                        <PencilIcon className="w-4 h-4" />
-                        Edit
+                        <PencilIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
-      )}
+            })}
+          </div>
+        )}
+
+        {/* Quick Actions Panel */}
+        {/* <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100/20 to-purple-100/20 rounded-full -translate-y-16 translate-x-16"></div>
+          
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/25">
+                <CreditCardIcon className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Quick Actions</h3>
+                <p className="text-gray-600">Manage borrowers efficiently</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <button
+                onClick={() => navigate('/dashboard/borrowers/add')}
+                className="p-4 bg-gradient-to-r from-indigo-50 to-indigo-100 hover:from-indigo-100 hover:to-indigo-200 border border-indigo-200 rounded-xl transition-all duration-200 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500 rounded-lg group-hover:bg-indigo-600 transition-colors duration-200">
+                    <PlusIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-indigo-900">Add Borrower</p>
+                    <p className="text-sm text-indigo-600">Create new profile</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/dashboard/loans')}
+                className="p-4 bg-gradient-to-r from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 border border-green-200 rounded-xl transition-all duration-200 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500 rounded-lg group-hover:bg-green-600 transition-colors duration-200">
+                    <DocumentTextIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-green-900">View Loans</p>
+                    <p className="text-sm text-green-600">Manage loan portfolio</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/dashboard/reports')}
+                className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border border-purple-200 rounded-xl transition-all duration-200 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500 rounded-lg group-hover:bg-purple-600 transition-colors duration-200">
+                    <ChartBarIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-purple-900">Reports</p>
+                    <p className="text-sm text-purple-600">Generate insights</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={fetchBorrowers}
+                className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border border-orange-200 rounded-xl transition-all duration-200 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-500 rounded-lg group-hover:bg-orange-600 transition-colors duration-200">
+                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-orange-900">Refresh</p>
+                    <p className="text-sm text-orange-600">Update data</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div> */}
+
+        {/* Export & Bulk Actions */}
+        {filteredBorrowers.length > 0 && (
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-100/30 to-gray-200/30 rounded-full -translate-y-12 translate-x-12"></div>
+            
+            <div className="relative z-10">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Bulk Actions</h3>
+                  <p className="text-gray-600">Export data or perform bulk operations</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-blue-500/25 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export CSV
+                  </button>
+                  <button className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-green-500/25 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export PDF
+                  </button>
+                  <button className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-purple-500/25 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293H10" />
+                    </svg>
+                    Print List
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

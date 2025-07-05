@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.kadgroupltd.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const api = axios.create({
     baseURL: API_BASE_URL,
@@ -107,11 +107,23 @@ export const loansAPI = {
     getRepayments: (loanId) => api.get(`/loans/${loanId}/repayments`),
     getSchedule: (loanId) => api.get(`/loans/${loanId}/schedule`),
     getDocuments: (loanId) => api.get(`/loans/${loanId}/documents`),
-    uploadDocument: (formData) => api.post('/loans/documents/upload', formData, {
+    uploadDocument: (loanId, formData) => api.post(`/loans/${loanId}/files`, formData, {
         headers: {
             'Content-Type': 'multipart/form-data'
         }
     }),
+    deleteDocument: (loanId, documentId) => api.delete(`/loans/${loanId}/files/${documentId}`),
+    downloadDocument: (loanId, documentId) => api.get(`/loans/${loanId}/files/${documentId}/download`, {
+        responseType: 'blob'
+    }),
+    updateDocumentStatus: (loanId, documentId, statusData) => api.put(`/loans/${loanId}/files/${documentId}`, statusData),
+    
+    // Comments API - Using loanDetails routes
+    getComments: (loanId) => api.get(`/loans/${loanId}/comments`),
+    addComment: (loanId, commentData) => api.post(`/loans/${loanId}/comments`, commentData),
+    updateComment: (loanId, commentId, commentData) => api.put(`/loans/${loanId}/comments/${commentId}`, commentData),
+    deleteComment: (loanId, commentId) => api.delete(`/loans/${loanId}/comments/${commentId}`),
+    
     getLoanTypes: (params) => api.get('/loan-types', { params }),
 };
 
@@ -451,6 +463,15 @@ export const chartAPI = {
         api.get(`/loans/stats/outstanding-trends?months=${months}`)
 };
 
+
+
+// Add this to your existing loanOfficerAPI section or create it if it doesn't exist
+export const loanOfficerAPI = {
+    getStats: () => api.get('/loan-officer/stats'),
+    getLoans: (params) => api.get('/loan-officer/loans', { params }),
+    getBorrowers: (params) => api.get('/loan-officer/borrowers', { params }),
+    getCollections: (params) => api.get('/loan-officer/collections', { params })
+};
 
 
 

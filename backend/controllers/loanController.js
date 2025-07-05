@@ -1399,6 +1399,256 @@ const getOutstandingTrends = async (req, res) => {
 
 
 
+// Add these new functions to your existing loanController.js
+
+// @desc    Get loan officer statistics
+// @route   GET /api/loans/officer/:officerId/stats
+// @access  Private
+const getLoanOfficerStats = async (req, res) => {
+    try {
+        const { officerId } = req.params;
+
+        // Get loan statistics for the officer
+        const [stats] = await sequelize.query(`
+            SELECT 
+                COUNT(*) as total_loans,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_loans,
+                COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_loans,
+                COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_loans,
+                COUNT(CASE WHEN status = 'disbursed' THEN 1 END) as disbursed_loans,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_loans,
+                SUM(COALESCE(applied_amount, 0)) as total_applied_amount,
+                SUM(COALESCE(approved_amount, 0)) as total_approved_amount,
+                SUM(COALESCE(disbursed_amount, 0)) as total_disbursed_amount,
+                SUM(COALESCE(loan_balance, 0)) as total_outstanding,
+                AVG(COALESCE(interest_rate, 0)) as avg_interest_rate
+            FROM loans 
+            WHERE loan_officer_id = ?
+        `, { replacements: [officerId] });
+
+        // Get collections total (if repayments table exists)
+        let collectionsTotal = 0;
+        try {
+            const [collections] = await sequelize.query(`
+                SELECT 
+                    SUM(COALESCE(r.amount_paid, 0)) as collections_total,
+                    COUNT(*) as total_collections
+                FROM repayments r
+                JOIN loans l ON r.loan_id = l.id
+                WHERE l.loan_officer_id = ? AND r.status = 'completed'
+            `, { replacements: [officerId] });
+            
+            collectionsTotal = collections[0]?.collections_total || 0;
+        } catch (error) {
+            console.log('Repayments table not found, using 0 for collections');
+        }
+
+        const result = {
+            ...stats[0],
+            collections_total: collectionsTotal,
+            total_amount: stats[0].total_approved_amount || stats[0].total_applied_amount || 0
+        };
+
+        res.status(200).json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        console.error('Get loan officer stats error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching loan officer statistics',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get loans assigned to a specific officer
+// @route   GET /api/loans/officer/:officerId
+// @access  Private
+const getLoansByOfficer = async (req, res) => {
+    try {
+        const { officerId } = req.params;
+        const { 
+            page = 1, 
+            limit = 10, 
+            status, 
+            sort = 'created_at', 
+            order = 'desc' 
+        } = req.query;
+
+        const offset = (page - 1) * limit;
+        let whereClause = 'WHERE l.loan_officer_id = ?';
+        let replacements = [officerId];
+
+        if (status) {
+            whereClause += ' AND l.status = ?';
+            replacements.push(status);
+        }
+
+        // Validate sort parameters
+        const allowedSortFields = ['created_at', 'updated_at', 'loan_number', 'applied_amount', 'status'];
+        const sortBy = allowedSortFields.includes(sort) ? sort : 'created_at';
+        const sortOrder = ['asc', 'desc'].includes(order.toLowerCase()) ? order.toUpperCase() : 'DESC';
+
+        // Get total count
+        const [countResult] = await sequelize.query(`
+            SELECT COUNT(*) as total 
+            FROM loans l 
+            ${whereClause}
+        `, { replacements });
+
+        const total = countResult[0].total;
+
+        // Get loans
+        const [loans] = await sequelize.query(`
+            SELECT 
+                l.id,
+                l.loan_number,
+                l.loan_account,
+                l.status,
+                l.applied_amount,
+                l.approved_amount,
+                l.disbursed_amount,
+                l.loan_balance,
+                l.interest_rate,
+                l.loan_term_months,
+                l.created_at,
+                l.updated_at,
+                l.maturity_date,
+                c.first_name,
+                c.last_name,
+                c.client_number,
+                c.mobile as client_mobile,
+                c.email as client_email,
+                CONCAT(c.first_name, ' ', c.last_name) as client_name,
+                COALESCE(l.approved_amount, l.applied_amount, 0) as amount
+            FROM loans l
+            JOIN clients c ON l.client_id = c.id
+            ${whereClause}
+            ORDER BY l.${sortBy} ${sortOrder}
+            LIMIT ? OFFSET ?
+        `, { 
+            replacements: [...replacements, parseInt(limit), parseInt(offset)] 
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                loans,
+                pagination: {
+                    total,
+                    pages: Math.ceil(total / limit),
+                    currentPage: parseInt(page),
+                    limit: parseInt(limit)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Get loans by officer error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching loans for officer',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get collections made by a specific officer
+// @route   GET /api/collections/officer/:officerId
+// @access  Private
+const getCollectionsByOfficer = async (req, res) => {
+    try {
+        const { officerId } = req.params;
+        const { 
+            page = 1, 
+            limit = 10, 
+            sort = 'created_at', 
+            order = 'desc' 
+        } = req.query;
+
+        const offset = (page - 1) * limit;
+
+        // Check if repayments table exists
+        try {
+            const [collections] = await sequelize.query(`
+                SELECT 
+                    r.id,
+                    r.loan_id,
+                    r.amount_paid as amount,
+                    r.payment_date as collection_date,
+                    r.payment_method,
+                    r.reference_number,
+                    r.notes,
+                    r.created_at,
+                    l.loan_number,
+                    l.loan_account,
+                    c.first_name,
+                    c.last_name,
+                    c.client_number,
+                    CONCAT(c.first_name, ' ', c.last_name) as client_name
+                FROM repayments r
+                JOIN loans l ON r.loan_id = l.id
+                JOIN clients c ON l.client_id = c.id
+                WHERE l.loan_officer_id = ? AND r.status = 'completed'
+                ORDER BY r.${sort === 'created_at' ? 'created_at' : 'payment_date'} ${order.toUpperCase()}
+                LIMIT ? OFFSET ?
+            `, { 
+                replacements: [officerId, parseInt(limit), parseInt(offset)] 
+            });
+
+            // Get total count
+            const [countResult] = await sequelize.query(`
+                SELECT COUNT(*) as total 
+                FROM repayments r
+                JOIN loans l ON r.loan_id = l.id
+                WHERE l.loan_officer_id = ? AND r.status = 'completed'
+            `, { replacements: [officerId] });
+
+            const total = countResult[0].total;
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    collections,
+                    pagination: {
+                        total,
+                        pages: Math.ceil(total / limit),
+                        currentPage: parseInt(page),
+                        limit: parseInt(limit)
+                    }
+                }
+            });
+
+        } catch (tableError) {
+            // If repayments table doesn't exist, return empty data
+            res.status(200).json({
+                success: true,
+                data: {
+                    collections: [],
+                    pagination: {
+                        total: 0,
+                        pages: 0,
+                        currentPage: 1,
+                        limit: parseInt(limit)
+                    }
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('Get collections by officer error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching collections for officer',
+            error: error.message
+        });
+    }
+};
+
+
 
 
 
@@ -1420,5 +1670,10 @@ module.exports = {
     getMonthlyLoanReleases,
     getLoanStatusDistribution,
     getMonthlyCollections,
-    getOutstandingTrends
+    getOutstandingTrends,
+
+
+    getLoanOfficerStats,
+    getLoansByOfficer,
+    getCollectionsByOfficer
 };

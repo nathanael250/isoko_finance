@@ -75,11 +75,14 @@ const LoanDetails = () => {
             console.log('API Response:', response.data);
 
             if (response.data.success) {
-                const loanData = response.data.data.loan; // Note the .loan here
+                const responseData = response.data.data;
+                const loanData = responseData.loan;
                 console.log('Loan data received:', loanData);
+                console.log('Documents received:', responseData.documents?.length || 0);
+                console.log('Comments received:', responseData.comments?.length || 0);
 
-                setLoan(loanData);
-                setComments(response.data.data.comments || []);
+                setLoan({...loanData, documents: responseData.documents || []});
+                setComments(responseData.comments || []);
 
                 // Set client data from the same response
                 const clientData = {
@@ -173,25 +176,27 @@ const LoanDetails = () => {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-                        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-red-900 mb-2">Error Loading Loan</h3>
-                        <p className="text-red-700 mb-4">{error}</p>
-                        <div className="flex space-x-3 justify-center">
-                            <button
-                                onClick={fetchLoanDetails}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                            >
-                                Try Again
-                            </button>
-                            <button
-                                onClick={() => navigate('/dashboard/admin/loans')}
-                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                            >
-                                Back to Loans
-                            </button>
+            <div className="min-h-screen bg-gray-200">
+                <div className="p-6 max-w-7xl mx-auto">
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="bg-white shadow-sm rounded-lg p-8 max-w-md mx-auto text-center">
+                            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Loan</h3>
+                            <p className="text-gray-600 mb-6">{error}</p>
+                            <div className="space-x-3">
+                                <button
+                                    onClick={fetchLoanDetails}
+                                    className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-red-500/25"
+                                >
+                                    Try Again
+                                </button>
+                                <button
+                                    onClick={() => navigate('/dashboard/admin/loans')}
+                                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-all duration-200"
+                                >
+                                    Back to Loans
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -202,66 +207,66 @@ const LoanDetails = () => {
 
     if (!loan) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Loan Data</h3>
-                    <p className="text-gray-600 mb-4">Loan data could not be loaded.</p>
-                    <button
-                        onClick={() => navigate('/dashboard/admin/loans')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                        Back to Loans
-                    </button>
+            <div className="min-h-screen bg-gray-200">
+                <div className="p-6 max-w-7xl mx-auto">
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="bg-white shadow-sm rounded-lg p-8 max-w-md mx-auto text-center">
+                            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Loan Data</h3>
+                            <p className="text-gray-600 mb-6">Loan data could not be loaded.</p>
+                            <button
+                                onClick={() => navigate('/dashboard/admin/loans')}
+                                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-blue-500/25"
+                            >
+                                Back to Loans
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <div className="bg-white border-b border-gray-200">
-                <div className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
+        <div className="min-h-screen bg-gray-200">
+            <div className="p-6 max-w-7xl mx-auto">
+                {/* Header Section - Matching Admin Dashboard Style */}
+                <div className="mb-6 flex justify-between items-center">
+                    <div>
+                        <div className="flex items-center space-x-4 mb-2">
                             <button
                                 onClick={() => navigate('/dashboard/admin/loans')}
-                                className="flex items-center text-gray-600 hover:text-gray-900"
+                                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
                             >
                                 <ArrowLeft className="w-5 h-5 mr-2" />
                                 Back to Loans
                             </button>
-                            <div>
-                                <h1 className="text-2xl font-bold text-gray-900">
-                                    Loan Details - {loan.loan_number}
-                                </h1>
-                                <p className="text-gray-600">Account: {loan.loan_account}</p>
-                            </div>
                         </div>
-                        <div className="flex items-center space-x-3">
-                            <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(loan.status)}`}>
-                                {loan.status?.replace('_', ' ').toUpperCase()}
-                            </span>
-                        </div>
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            Loan Details - {loan.loan_number}
+                        </h1>
+                        <p className="text-gray-600 text-sm mt-1">Account: {loan.loan_account}</p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(loan.status)}`}>
+                            {loan.status?.replace('_', ' ').toUpperCase()}
+                        </span>
                     </div>
                 </div>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-                {/* Client Information Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div className="px-6 py-4 border-b border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                            <User className="w-5 h-5 mr-2" />
-                            Client Information
-                        </h3>
-                    </div>
-                    <div className="p-6">
+                {/* Client Information Section - Dashboard Style */}
+                <div className="mb-6">
+                    <div className="bg-white shadow-sm rounded-lg p-4 relative overflow-hidden">
+                        <div className="mb-4">
+                            <div className="flex items-center gap-3 mb-1">
+                                <User className="bg-blue-500 p-1.5 rounded text-white w-7 h-7" />
+                                <h2 className="text-gray-900 text-lg font-semibold">Client Information</h2>
+                            </div>
+                            <p className="text-gray-600 text-xs">Borrower details and contact information</p>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div>
                                 <label className="text-sm font-medium text-gray-500">Client Name</label>
-                                <p className="mt-1 text-sm text-gray-900">
+                                <p className="mt-1 text-sm text-gray-900 font-medium">
                                     {loan?.client_first_name && loan?.client_last_name
                                         ? `${loan.client_first_name} ${loan.client_last_name}`
                                         : 'N/A'}
@@ -269,19 +274,19 @@ const LoanDetails = () => {
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-500">Client Number</label>
-                                <p className="mt-1 text-sm text-gray-900">{loan?.client_number || 'N/A'}</p>
+                                <p className="mt-1 text-sm text-gray-900 font-medium">{loan?.client_number || 'N/A'}</p>
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-500">Phone Number</label>
-                                <p className="mt-1 text-sm text-gray-900">{loan?.client_mobile || 'N/A'}</p>
+                                <p className="mt-1 text-sm text-gray-900 font-medium">{loan?.client_mobile || 'N/A'}</p>
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-500">Email</label>
-                                <p className="mt-1 text-sm text-gray-900">{loan?.client_email || 'N/A'}</p>
+                                <p className="mt-1 text-sm text-gray-900 font-medium">{loan?.client_email || 'N/A'}</p>
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-500">Address</label>
-                                <p className="mt-1 text-sm text-gray-900">
+                                <p className="mt-1 text-sm text-gray-900 font-medium">
                                     {loan?.client_address
                                         ? `${loan.client_address}${loan.client_city ? ', ' + loan.client_city : ''}${loan.client_state ? ', ' + loan.client_state : ''}`
                                         : 'N/A'}
@@ -289,7 +294,7 @@ const LoanDetails = () => {
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-500">Loan Officer</label>
-                                <p className="mt-1 text-sm text-gray-900">
+                                <p className="mt-1 text-sm text-gray-900 font-medium">
                                     {loan?.officer_first_name && loan?.officer_last_name
                                         ? `${loan.officer_first_name} ${loan.officer_last_name}`
                                         : 'Not assigned'}
@@ -299,64 +304,67 @@ const LoanDetails = () => {
                     </div>
                 </div>
 
-                {/* Loan Details Section - Single Row Table */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                            <DollarSign className="w-5 h-5 mr-2" />
-                            Loan Summary
-                        </h3>
-                        <div className="flex space-x-2">
-                            {isEditing ? (
-                                <>
-                                    <button
-                                        onClick={handleSave}
-                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                                    >
-                                        Save Changes
-                                    </button>
+                {/* Loan Summary Section - Dashboard Style */}
+                <div className="mb-6">
+                    <div className="bg-white shadow-sm rounded-lg p-4 relative overflow-hidden">
+                        <div className="mb-4 flex justify-between items-center">
+                            <div>
+                                <div className="flex items-center gap-3 mb-1">
+                                    <DollarSign className="bg-green-500 p-1.5 rounded text-white w-7 h-7" />
+                                    <h2 className="text-gray-900 text-lg font-semibold">Loan Summary</h2>
+                                </div>
+                                <p className="text-gray-600 text-xs">Detailed loan information and balances</p>
+                            </div>
+                            <div className="flex space-x-2">
+                                {isEditing ? (
+                                    <>
+                                        <button
+                                            onClick={handleSave}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm transition-colors"
+                                        >
+                                            Save Changes
+                                        </button>
+                                        <button
+                                            onClick={handleEditToggle}
+                                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </>
+                                ) : (
                                     <button
                                         onClick={handleEditToggle}
-                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors"
                                     >
-                                        Cancel
+                                        Edit
                                     </button>
-                                </>
-                            ) : (
-                                <button
-                                    onClick={handleEditToggle}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                                >
-                                    Edit
-                                </button>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </div>
-                    <div className="p-6">
                         <div className="overflow-x-auto">
-                            <table className="min-w-full">
+                            <table className="min-w-full bg-white rounded-lg overflow-hidden">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loan#</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Released</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Maturity</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Principal</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interest Rate</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interest</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fees</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Penalty</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loan#</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Released</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Maturity</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Principal</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interest Rate</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interest</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fees</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Penalty</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white">
-                                    <tr className="hover:bg-gray-50">
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    <tr className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                                             {loan?.loan_number || 'N/A'}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {isEditing ? (
                                                 <input
                                                     type="date"
@@ -368,7 +376,7 @@ const LoanDetails = () => {
                                                 loan?.application_date ? formatDate(loan.application_date) : 'Not Released'
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {isEditing ? (
                                                 <input
                                                     type="date"
@@ -380,7 +388,7 @@ const LoanDetails = () => {
                                                 loan?.maturity_date ? formatDate(loan.maturity_date) : 'N/A'
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {isEditing ? (
                                                 <input
                                                     type="number"
@@ -392,7 +400,7 @@ const LoanDetails = () => {
                                                 formatCurrency(loan?.approved_amount || loan?.applied_amount || 0)
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {isEditing ? (
                                                 <div className="flex items-center space-x-1">
                                                     <input
@@ -408,32 +416,32 @@ const LoanDetails = () => {
                                                 loan?.interest_rate ? `${parseFloat(loan.interest_rate).toFixed(2)}%` : 'N/A'
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {formatCurrency(loan?.interest_balance || 0)}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {formatCurrency(loan?.total_fees_including_vat || loan?.total_fees_before_vat || 0)}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {formatCurrency((loan?.arrears_principal || 0) + (loan?.arrears_interest || 0))}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {formatCurrency(
                                                 (loan?.approved_amount || loan?.applied_amount || 0) +
                                                 (loan?.interest_balance || 0) +
                                                 (loan?.total_fees_including_vat || loan?.total_fees_before_vat || 0)
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {formatCurrency(
                                                 (loan?.approved_amount || loan?.applied_amount || 0) -
                                                 (loan?.principal_balance || 0)
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                             {formatCurrency(loan?.loan_balance || loan?.principal_balance || (loan?.approved_amount || loan?.applied_amount || 0))}
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap">
+                                        <td className="px-3 py-3 whitespace-nowrap">
                                             {isEditing ? (
                                                 <select
                                                     value={editedLoan.status || loan?.status || ''}
@@ -465,40 +473,41 @@ const LoanDetails = () => {
                 </div>
 
 
-                {/* Balance Information */}
+                {/* Balance Information - Dashboard Style */}
                 {(loan.status === 'active' || loan.status === 'disbursed' || loan.status === 'completed') && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                                <CreditCard className="w-5 h-5 mr-2" />
-                                Current Balance
-                            </h3>
-                        </div>
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                <div className="bg-blue-50 rounded-lg p-4">
-                                    <label className="text-sm font-medium text-blue-900">Outstanding Balance</label>
-                                    <p className="text-2xl font-bold text-blue-600">
+                    <div className="mb-6">
+                        <div className="bg-white shadow-sm rounded-lg p-4 relative overflow-hidden">
+                            <div className="mb-4">
+                                <div className="flex items-center gap-3 mb-1">
+                                    <CreditCard className="bg-purple-500 p-1.5 rounded text-white w-7 h-7" />
+                                    <h2 className="text-gray-900 text-lg font-semibold">Current Balance</h2>
+                                </div>
+                                <p className="text-gray-600 text-xs">Outstanding balances and payment status</p>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm rounded-lg p-4 transition-all duration-200 hover:shadow-md">
+                                    <h3 className="text-gray-200 text-sm font-medium mb-3">Outstanding Balance</h3>
+                                    <span className="text-2xl font-bold text-white">
                                         {formatCurrency(loan.loan_balance)}
-                                    </p>
+                                    </span>
                                 </div>
-                                <div className="bg-green-50 rounded-lg p-4">
-                                    <label className="text-sm font-medium text-green-900">Principal Balance</label>
-                                    <p className="text-2xl font-bold text-green-600">
+                                <div className="bg-gradient-to-r from-green-500 to-green-600 shadow-sm rounded-lg p-4 transition-all duration-200 hover:shadow-md">
+                                    <h3 className="text-gray-200 text-sm font-medium mb-3">Principal Balance</h3>
+                                    <span className="text-2xl font-bold text-white">
                                         {formatCurrency(loan.principal_balance)}
-                                    </p>
+                                    </span>
                                 </div>
-                                <div className="bg-yellow-50 rounded-lg p-4">
-                                    <label className="text-sm font-medium text-yellow-900">Interest Balance</label>
-                                    <p className="text-2xl font-bold text-yellow-600">
+                                <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 shadow-sm rounded-lg p-4 transition-all duration-200 hover:shadow-md">
+                                    <h3 className="text-gray-200 text-sm font-medium mb-3">Interest Balance</h3>
+                                    <span className="text-2xl font-bold text-white">
                                         {formatCurrency(loan.interest_balance)}
-                                    </p>
+                                    </span>
                                 </div>
-                                <div className="bg-purple-50 rounded-lg p-4">
-                                    <label className="text-sm font-medium text-purple-900">Installments Paid</label>
-                                    <p className="text-2xl font-bold text-purple-600">
+                                <div className="bg-gradient-to-r from-purple-500 to-purple-600 shadow-sm rounded-lg p-4 transition-all duration-200 hover:shadow-md">
+                                    <h3 className="text-gray-200 text-sm font-medium mb-3">Installments Paid</h3>
+                                    <span className="text-2xl font-bold text-white">
                                         {loan.installments_paid || 0} / {loan.total_installments || 0}
-                                    </p>
+                                    </span>
                                 </div>
                             </div>
 
@@ -535,40 +544,43 @@ const LoanDetails = () => {
                     </div>
                 )}
 
-                {/* Tabs Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                    {/* Tab Navigation */}
-                    <div className="border-b border-gray-200">
-                        <nav className="flex space-x-8 px-6" aria-label="Tabs">
-                            {tabs.map((tab) => {
-                                const Icon = tab.icon;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={`${activeTab === tab.id
-                                            ? 'border-blue-500 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
-                                    >
-                                        <Icon className="w-4 h-4 mr-2" />
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
-                        </nav>
-                    </div>
+                {/* Tabs Section - Dashboard Style */}
+                <div className="mb-6">
+                    <div className="bg-white shadow-sm rounded-lg relative overflow-hidden">
+                        {/* Tab Navigation */}
+                        <div className="border-b border-gray-200 bg-gray-50 rounded-t-lg">
+                            <nav className="flex space-x-8 px-4 py-2" aria-label="Tabs">
+                                {tabs.map((tab) => {
+                                    const Icon = tab.icon;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`${activeTab === tab.id
+                                                ? 'border-blue-500 text-blue-600 bg-white'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                                } whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm flex items-center rounded-t-lg transition-all duration-200`}
+                                        >
+                                            <Icon className="w-4 h-4 mr-2" />
+                                            {tab.label}
+                                        </button>
+                                    );
+                                })}
+                            </nav>
+                        </div>
 
-                    {/* Tab Content */}
-                    <div className="p-6">
-                        {activeTab === 'schedule' && <ScheduleTab loanId={id} />}
-                        {activeTab === 'repayments' && <RepaymentsTab loanId={id} />}
-                        {activeTab === 'documents' && <DocumentsTab loanId={id} />}
-                        {activeTab === 'comments' && <CommentsTab loanId={id} comments={comments} fetchLoanDetails={fetchLoanDetails} />}
+                        {/* Tab Content */}
+                            <div className="p-4">
+                                {activeTab === 'schedule' && <ScheduleTab loanId={id} />}
+                                {activeTab === 'repayments' && <RepaymentsTab loanId={id} />}
+                                {activeTab === 'documents' && <DocumentsTab loanId={id} initialDocuments={loan?.documents || []} />}
+                                {activeTab === 'comments' && <CommentsTab loanId={id} comments={comments} fetchLoanDetails={fetchLoanDetails} />}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        
     );
 };
 
@@ -1065,31 +1077,106 @@ const RepaymentsTab = ({ loanId }) => {
 };
 
 // Documents Tab Component
-const DocumentsTab = ({ loanId }) => {
-    const [documents, setDocuments] = useState([]);
-    const [loading, setLoading] = useState(true);
+const DocumentsTab = ({ loanId, initialDocuments = [] }) => {
+    const [documents, setDocuments] = useState(initialDocuments);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [showUploadModal, setShowUploadModal] = useState(false);
 
     useEffect(() => {
-        fetchDocuments();
-    }, [loanId]);
+        console.log('DocumentsTab useEffect - initialDocuments:', initialDocuments.length);
+        if (initialDocuments.length > 0) {
+            console.log('Using initial documents:', initialDocuments);
+            setDocuments(initialDocuments);
+            setLoading(false);
+        } else {
+            console.log('Fetching documents via API...');
+            fetchDocuments();
+        }
+    }, [loanId, initialDocuments]);
 
     const fetchDocuments = async () => {
+        console.log('fetchDocuments called for loanId:', loanId);
         setLoading(true);
         setError(null);
         try {
             const response = await loansAPI.getDocuments(loanId);
+            console.log('Documents API response:', response.data);
             if (response.data.success) {
+                console.log('Documents fetched:', response.data.data?.length || 0);
                 setDocuments(response.data.data || []);
             } else {
+                console.log('Documents API returned success:false');
                 setDocuments([]);
             }
         } catch (err) {
             console.error('Error fetching documents:', err);
+            console.error('Error details:', err.response?.data);
             setError('Failed to load documents');
             setDocuments([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleFileUpload = async (formData) => {
+        setUploading(true);
+        try {
+            const response = await loansAPI.uploadDocument(loanId, formData);
+            if (response.data.success) {
+                alert('Document uploaded successfully!');
+                fetchDocuments(); // Refresh documents list
+                setShowUploadModal(false);
+            } else {
+                alert('Failed to upload document: ' + (response.data.message || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Error uploading document:', err);
+            alert('Error uploading document: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleDownload = async (doc) => {
+        try {
+            const response = await loansAPI.downloadDocument(loanId, doc.id);
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', doc.file_name || 'document');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Error downloading document:', err);
+            alert('Error downloading document');
+        }
+    };
+
+    const handleDelete = async (doc) => {
+        if (!window.confirm(`Are you sure you want to delete "${doc.file_name}"?`)) return;
+        
+        try {
+            await loansAPI.deleteDocument(loanId, doc.id);
+            alert('Document deleted successfully!');
+            fetchDocuments(); // Refresh documents list
+        } catch (err) {
+            console.error('Error deleting document:', err);
+            alert('Error deleting document: ' + (err.response?.data?.message || err.message));
+        }
+    };
+
+    const handleStatusUpdate = async (documentId, newStatus) => {
+        try {
+            await loansAPI.updateDocumentStatus(loanId, documentId, { status: newStatus });
+            alert(`Document ${newStatus} successfully!`);
+            fetchDocuments(); // Refresh documents list
+        } catch (err) {
+            console.error('Error updating document status:', err);
+            alert('Error updating document status: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -1104,9 +1191,9 @@ const DocumentsTab = ({ loanId }) => {
 
     const getDocumentTypeColor = (type) => {
         const colors = {
-            'id_card': 'bg-blue-100 text-blue-800',
-            'passport': 'bg-green-100 text-green-800',
-            'utility_bill': 'bg-yellow-100 text-yellow-800',
+            'application': 'bg-blue-100 text-blue-800',
+            'id_copy': 'bg-green-100 text-green-800',
+            'income_proof': 'bg-yellow-100 text-yellow-800',
             'bank_statement': 'bg-purple-100 text-purple-800',
             'business_license': 'bg-indigo-100 text-indigo-800',
             'collateral_document': 'bg-red-100 text-red-800',
@@ -1144,7 +1231,10 @@ const DocumentsTab = ({ loanId }) => {
                         <Download className="w-4 h-4 mr-2" />
                         Refresh
                     </button>
-                    <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <button 
+                        onClick={() => setShowUploadModal(true)}
+                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
                         <Upload className="w-4 h-4 mr-2" />
                         Upload Document
                     </button>
@@ -1175,7 +1265,10 @@ const DocumentsTab = ({ loanId }) => {
                     <p className="text-gray-600 mb-4">
                         No documents have been uploaded for this loan yet.
                     </p>
-                    <button className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <button 
+                        onClick={() => setShowUploadModal(true)}
+                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
                         <Upload className="w-4 h-4 mr-2" />
                         Upload First Document
                     </button>
@@ -1220,8 +1313,10 @@ const DocumentsTab = ({ loanId }) => {
                                             </p>
                                         </div>
                                     </div>
-                                    {document.is_verified ? (
+                                    {document.status === 'approved' ? (
                                         <CheckCircle className="w-5 h-5 text-green-500" />
+                                    ) : document.status === 'rejected' ? (
+                                        <XCircle className="w-5 h-5 text-red-500" />
                                     ) : (
                                         <Clock className="w-5 h-5 text-yellow-500" />
                                     )}
@@ -1229,15 +1324,22 @@ const DocumentsTab = ({ loanId }) => {
 
                                 <div className="space-y-2 mb-4">
                                     <div>
-                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getDocumentTypeColor(document.document_type)}`}>
-                                            {document.document_type?.replace('_', ' ') || 'Unknown'}
+                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getDocumentTypeColor(document.file_type)}`}>
+                                            {document.file_type?.replace('_', ' ') || 'Unknown'}
+                                        </span>
+                                        <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                            document.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                            document.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                            {document.status || 'pending_review'}
                                         </span>
                                     </div>
                                     <p className="text-sm text-gray-600">
                                         {document.description || 'No description provided'}
                                     </p>
                                     <p className="text-xs text-gray-500">
-                                        Uploaded: {formatDate(document.uploaded_at)}
+                                        Uploaded: {formatDate(document.created_at)}
                                     </p>
                                     {document.uploaded_by_name && (
                                         <p className="text-xs text-gray-500">
@@ -1247,23 +1349,41 @@ const DocumentsTab = ({ loanId }) => {
                                 </div>
 
                                 <div className="flex space-x-2">
-                                    <button className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                    <button 
+                                        onClick={() => handleDownload(document)}
+                                        className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    >
                                         <Eye className="w-4 h-4 mr-1" />
                                         View
                                     </button>
-                                    <button className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                    <button 
+                                        onClick={() => handleDownload(document)}
+                                        className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    >
                                         <Download className="w-4 h-4 mr-1" />
                                         Download
                                     </button>
+                                    <button 
+                                        onClick={() => handleDelete(document)}
+                                        className="flex items-center justify-center px-3 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 hover:bg-red-50"
+                                    >
+                                        <XCircle className="w-4 h-4" />
+                                    </button>
                                 </div>
 
-                                {!document.is_verified && (
+                                {document.status === 'pending_review' && (
                                     <div className="mt-3 pt-3 border-t border-gray-200">
                                         <div className="flex space-x-2">
-                                            <button className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">
-                                                Verify
+                                            <button 
+                                                onClick={() => handleStatusUpdate(document.id, 'approved')}
+                                                className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700"
+                                            >
+                                                Approve
                                             </button>
-                                            <button className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700">
+                                            <button 
+                                                onClick={() => handleStatusUpdate(document.id, 'rejected')}
+                                                className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700"
+                                            >
                                                 Reject
                                             </button>
                                         </div>
@@ -1274,6 +1394,195 @@ const DocumentsTab = ({ loanId }) => {
                     </div>
                 </>
             )}
+
+            {/* Upload Modal */}
+            {showUploadModal && (
+                <UploadDocumentModal 
+                    loanId={loanId}
+                    onClose={() => setShowUploadModal(false)}
+                    onUpload={handleFileUpload}
+                    uploading={uploading}
+                />
+            )}
+        </div>
+    );
+};
+
+// Upload Document Modal Component
+const UploadDocumentModal = ({ loanId, onClose, onUpload, uploading }) => {
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [documentType, setDocumentType] = useState('other');
+    const [description, setDescription] = useState('');
+    const [dragActive, setDragActive] = useState(false);
+
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            setSelectedFile(e.dataTransfer.files[0]);
+        }
+    };
+
+    const handleFileSelect = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            setSelectedFile(e.target.files[0]);
+        }
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!selectedFile) {
+            alert('Please select a file to upload');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('document', selectedFile);
+        formData.append('document_type', documentType);
+        formData.append('description', description);
+
+        onUpload(formData);
+    };
+
+    const documentTypes = [
+        { value: 'application', label: 'Application' },
+        { value: 'id_copy', label: 'ID Copy' },
+        { value: 'income_proof', label: 'Income Proof' },
+        { value: 'collateral_document', label: 'Collateral Document' },
+        { value: 'bank_statement', label: 'Bank Statement' },
+        { value: 'business_license', label: 'Business License' },
+        { value: 'other', label: 'Other' }
+    ];
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Upload Document</h3>
+                    <button 
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600"
+                    >
+                        <XCircle className="w-6 h-6" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* File Upload Area */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Document File</label>
+                        <div 
+                            className={`border-2 border-dashed rounded-lg p-6 text-center ${
+                                dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                            }`}
+                            onDragEnter={handleDrag}
+                            onDragLeave={handleDrag}
+                            onDragOver={handleDrag}
+                            onDrop={handleDrop}
+                        >
+                            {selectedFile ? (
+                                <div className="space-y-2">
+                                    <FileText className="w-8 h-8 text-green-500 mx-auto" />
+                                    <p className="text-sm font-medium text-gray-900">
+                                        {selectedFile.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedFile(null)}
+                                        className="text-red-600 text-sm hover:text-red-800"
+                                    >
+                                        Remove file
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <Upload className="w-8 h-8 text-gray-400 mx-auto" />
+                                    <p className="text-sm text-gray-600">
+                                        Drag and drop a file here, or 
+                                        <label className="text-blue-600 hover:text-blue-800 cursor-pointer ml-1">
+                                            browse
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                onChange={handleFileSelect}
+                                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                            />
+                                        </label>
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        PDF, DOC, DOCX, JPG, PNG up to 10MB
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Document Type */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Document Type
+                        </label>
+                        <select
+                            value={documentType}
+                            onChange={(e) => setDocumentType(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            {documentTypes.map(type => (
+                                <option key={type.value} value={type.value}>
+                                    {type.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Description
+                        </label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            rows="3"
+                            placeholder="Optional description for this document..."
+                        />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex space-x-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={!selectedFile || uploading}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            {uploading ? 'Uploading...' : 'Upload'}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 };
