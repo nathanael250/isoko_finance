@@ -63,6 +63,7 @@ export const clientsAPI = {
     getClient: (id) => api.get(`/clients/${id}`),
     updateClient: (id, clientData) => api.put(`/clients/${id}`, clientData),
     deleteClient: (id) => api.delete(`/clients/${id}`),
+    assignOfficer: (id, officerId) => api.patch(`/clients/${id}/assign-officer`, { assigned_officer: officerId }),
 };
 // Add this to your existing api.js file
 export const borrowersAPI = {

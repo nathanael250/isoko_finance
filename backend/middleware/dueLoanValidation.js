@@ -1,20 +1,7 @@
 const { query } = require('express-validator');
 
-const validateDueLoansQuery = [
-    query('start_date')
-        .isISO8601()
-        .withMessage('Start date must be a valid date (YYYY-MM-DD)'),
-
-    query('end_date')
-        .isISO8601()
-        .withMessage('End date must be a valid date (YYYY-MM-DD)')
-        .custom((value, { req }) => {
-            if (new Date(value) < new Date(req.query.start_date)) {
-                throw new Error('End date must be after start date');
-            }
-            return true;
-        }),
-
+// Common validation rules for both endpoints
+const commonValidationRules = [
     query('include_zero_due')
         .optional()
         .isBoolean()
@@ -27,7 +14,7 @@ const validateDueLoansQuery = [
 
     query('status')
         .optional()
-        .isIn(['overdue', 'due_today', 'due_soon', 'pending', 'partial', 'paid'])
+        .isIn(['overdue', 'due_today', 'due_soon', 'pending', 'partial', 'paid', 'all'])
         .withMessage('Invalid status filter'),
 
     query('loan_officer_id')
@@ -54,7 +41,7 @@ const validateDueLoansQuery = [
 
     query('sort_by')
         .optional()
-        .isIn(['due_date', 'client_name', 'loan_number', 'amount_due', 'days_overdue'])
+        .isIn(['due_date', 'client_name', 'loan_number', 'total_due', 'days_overdue', 'performance_class'])
         .withMessage('Invalid sort field'),
 
     query('sort_order')
@@ -78,6 +65,53 @@ const validateDueLoansQuery = [
         .withMessage('Format must be json or csv')
 ];
 
+// Validation for today's due loans (no date range required)
+const validateTodayDueLoansQuery = [
+    ...commonValidationRules
+];
+
+// Validation for date range due loans (requires start_date and end_date)
+const validateDateRangeDueLoansQuery = [
+    query('start_date')
+        .isISO8601()
+        .withMessage('Start date must be a valid date (YYYY-MM-DD)'),
+
+    query('end_date')
+        .isISO8601()
+        .withMessage('End date must be a valid date (YYYY-MM-DD)')
+        .custom((value, { req }) => {
+            if (new Date(value) < new Date(req.query.start_date)) {
+                throw new Error('End date must be after start date');
+            }
+            return true;
+        }),
+
+    ...commonValidationRules
+];
+
+// Legacy validation (for backward compatibility)
+const validateDueLoansQuery = [
+    query('start_date')
+        .optional()
+        .isISO8601()
+        .withMessage('Start date must be a valid date (YYYY-MM-DD)'),
+
+    query('end_date')
+        .optional()
+        .isISO8601()
+        .withMessage('End date must be a valid date (YYYY-MM-DD)')
+        .custom((value, { req }) => {
+            if (value && req.query.start_date && new Date(value) < new Date(req.query.start_date)) {
+                throw new Error('End date must be after start date');
+            }
+            return true;
+        }),
+
+    ...commonValidationRules
+];
+
 module.exports = {
-    validateDueLoansQuery
+    validateDueLoansQuery,
+    validateTodayDueLoansQuery,
+    validateDateRangeDueLoansQuery
 };

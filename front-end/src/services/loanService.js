@@ -75,5 +75,21 @@ export const loanService = {
         } catch (error) {
             throw error.response?.data || error;
         }
+    },
+    getAllLoans: async (params = {}) => {
+        try {
+            const response = await api.get('/loans', { params });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error;
+        }
+    },
+    getLoansByClient: async (clientId) => {
+        try {
+            const response = await api.get(`/loans/client/${clientId}`);
+            return response.data;
+        } catch (error) {
+            return { success: false, error };
+        }
     }
 };

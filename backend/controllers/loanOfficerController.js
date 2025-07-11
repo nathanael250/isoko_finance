@@ -23,12 +23,20 @@ const getDashboardStats = async (req, res) => {
             type: sequelize.QueryTypes.SELECT 
         });
 
+        // Get assigned borrowers count
+        const [borrowerCountResult] = await sequelize.query(
+            'SELECT COUNT(*) as total FROM clients WHERE assigned_officer = ?',
+            { replacements: [officerId] }
+        );
+        const assigned_borrowers = borrowerCountResult[0]?.total || 0;
+
         const stats = statsResults || {
             total_loans: 0,
             active_loans: 0,
             total_amount: 0,
             collections_total: 0
         };
+        stats.assigned_borrowers = assigned_borrowers;
 
         console.log('Stats result:', stats);
 
@@ -97,50 +105,66 @@ const getAssignedLoans = async (req, res) => {
     }
 };
 
+
+
 const getAssignedBorrowers = async (req, res) => {
     try {
-        console.log('getAssignedBorrowers called with params:', req.params);
-        
-        const officerId = req.params.officerId || req.user.id;
-        const limit = parseInt(req.query.limit) || 5;
-        
-        // Get borrowers assigned to this specific officer
-        const [borrowers] = await sequelize.query(`
-            SELECT DISTINCT
-                c.id,
-                c.client_number,
-                c.first_name,
-                c.last_name,
-                c.mobile,
-                c.email,
-                c.business_name,
-                c.created_at,
-                COUNT(l.id) as loan_count,
-                COALESCE(SUM(COALESCE(l.disbursed_amount, l.approved_amount, l.applied_amount)), 0) as total_borrowed
-            FROM clients c
-            INNER JOIN loans l ON c.id = l.client_id
-            WHERE l.loan_officer_id = ?
-            GROUP BY c.id, c.client_number, c.first_name, c.last_name, c.mobile, c.email, c.business_name, c.created_at
-            ORDER BY c.created_at DESC
-            LIMIT ?
-        `, { 
-            replacements: [officerId, limit],
-            type: sequelize.QueryTypes.SELECT 
-        });
+        const { page = 1, limit = 10, status, search, assigned_officer } = req.query;
+        const offset = (page - 1) * limit;
 
-        console.log('Borrowers found:', borrowers.length);
+        let whereClause = '';
+        let replacements = [];
+
+        if (assigned_officer) {
+            whereClause += ' WHERE assigned_officer = ?';
+            replacements.push(assigned_officer);
+        }
+
+        if (status) {
+            const clause = whereClause ? ' AND' : ' WHERE';
+            whereClause += `${clause} status = ?`;
+            replacements.push(status);
+        }
+
+        if (search) {
+            const clause = whereClause ? ' AND' : ' WHERE';
+            whereClause += `${clause} (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR mobile LIKE ?)`;
+            const searchTerm = `%${search}%`;
+            replacements.push(searchTerm, searchTerm, searchTerm, searchTerm);
+        }
+
+        // Get total count
+        const [countResult] = await sequelize.query(
+            `SELECT COUNT(*) as total FROM clients${whereClause}`,
+            { replacements }
+        );
+
+        const total = countResult[0].total;
+
+        // Get clients
+        const [clients] = await sequelize.query(
+            `SELECT * FROM clients${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+            { replacements: [...replacements, parseInt(limit), parseInt(offset)] }
+        );
 
         res.status(200).json({
             success: true,
             data: {
-                borrowers: borrowers || []
+                clients,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    pages: Math.ceil(total / limit)
+                }
             }
         });
+
     } catch (error) {
-        console.error('Get assigned borrowers error:', error);
+        console.error('Get clients error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error fetching assigned borrowers',
+            message: 'Error fetching clients',
             error: error.message
         });
     }

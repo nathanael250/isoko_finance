@@ -24,7 +24,9 @@ const {
 
   getLoanOfficerStats,
   getLoansByOfficer,
-  getCollectionsByOfficer
+  getCollectionsByOfficer,
+  
+  
 } = require('../controllers/loanController');
 
 // Import middleware

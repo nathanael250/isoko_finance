@@ -1,298 +1,308 @@
-import React, { useState, useEffect } from 'react';
+import { React, useState, useEffect } from 'react'
+import { Link } from 'react-router-dom';
+import { ChevronUp, ChevronDown, ArrowDownWideNarrow, Eye, Pencil, X, Link2 } from 'lucide-react';
+import { clientsAPI } from '../../services/api';
+import { api, loanOfficerAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../services/api';
-import { format } from 'date-fns';
-import { Search, Filter, Users, AlertCircle, ArrowLeft, Plus } from 'lucide-react';
+
 
 const LoanOfficerBorrowers = () => {
     const { user } = useAuth();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [entriesPerPage, setEntriesPerPage] = useState(20);
     const [borrowers, setBorrowers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
+    const [loanOfficers, setLoanOfficers] = useState([]);
+    const [assigningId, setAssigningId] = useState(null);
+    const [selectedOfficer, setSelectedOfficer] = useState('');
+    const [assignLoading, setAssignLoading] = useState(false);
+    const [assignError, setAssignError] = useState(null);
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [modalBorrower, setModalBorrower] = useState(null);
 
     useEffect(() => {
-        fetchBorrowers();
-    }, []);
+        if (user && user.id) {
+            fetchBorrowers(user.id);
+            fetchLoanOfficers();
+        }
+    }, [user]);
 
-    const fetchBorrowers = async () => {
+    const fetchBorrowers = async (officerId) => {
         try {
             setLoading(true);
-            const response = await api.get('/loan-officer/borrowers');
-            // Handle the nested data structure
-            const borrowersData = response.data?.data || [];
-            setBorrowers(borrowersData);
             setError(null);
+            const response = await loanOfficerAPI.getBorrowers({ assigned_officer: officerId });
+            let borrowersData = [];
+            if (response.data) {
+                if (response.data.success && response.data.data) {
+                    if (response.data.data.clients && Array.isArray(response.data.data.clients)) {
+                        borrowersData = response.data.data.clients;
+                    } else if (Array.isArray(response.data.data)) {
+                        borrowersData = response.data.data;
+                    }
+                } else if (Array.isArray(response.data)) {
+                    borrowersData = response.data;
+                }
+            }
+            setBorrowers(Array.isArray(borrowersData) ? borrowersData : []);
         } catch (err) {
-            setError('Failed to fetch borrowers. Please try again later.');
-            console.error('Error fetching borrowers:', err);
+            setError(`Failed to fetch borrowers: ${err.response?.data?.message || err.message}`);
+            setBorrowers([]);
         } finally {
             setLoading(false);
         }
     };
 
-    // Ensure borrowers is always an array before filtering
-    const filteredBorrowers = Array.isArray(borrowers) ? borrowers.filter(borrower => {
-        if (!borrower) return false;
-        
-        const matchesSearch = 
-            (borrower.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-            (borrower.client_number?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-        
-        const matchesStatus = statusFilter === 'all' || borrower.status === statusFilter;
-        
-        return matchesSearch && matchesStatus;
-    }) : [];
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'active':
-                return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200';
-            case 'pending':
-                return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200';
-            case 'inactive':
-                return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
-            default:
-                return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    const fetchLoanOfficers = async () => {
+        try {
+            const response = await api.get('/users', { params: { role: 'loan-officer', limit: 100 } });
+            if (response.data.success && response.data.data && Array.isArray(response.data.data.users)) {
+                setLoanOfficers(response.data.data.users);
+            } else {
+                setLoanOfficers([]);
+            }
+        } catch (err) {
+            setLoanOfficers([]);
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
+    const openAssignModal = (borrower) => {
+        setModalBorrower(borrower);
+        setSelectedOfficer('');
+        setAssignError(null);
+        setShowAssignModal(true);
+    };
+    const closeAssignModal = () => {
+        setShowAssignModal(false);
+        setModalBorrower(null);
+        setSelectedOfficer('');
+        setAssignError(null);
+    };
 
-    if (error) {
-        return (
-            <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-                <div className="text-center max-w-md mx-auto p-6">
-                    <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error Loading Borrowers</h3>
-                    <p className="text-gray-600 dark:text-gray-400">{error}</p>
-                    <button
-                        onClick={fetchBorrowers}
-                        className="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                        Try Again
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    const handleAssignOfficer = async () => {
+        if (!modalBorrower) return;
+        setAssignLoading(true);
+        setAssignError(null);
+        try {
+            await clientsAPI.assignOfficer(modalBorrower.id, selectedOfficer);
+            closeAssignModal();
+            fetchBorrowers();
+        } catch (err) {
+            setAssignError('Failed to assign loan officer');
+        } finally {
+            setAssignLoading(false);
+        }
+    };
 
-    return (
-        <div className="container mx-auto px-4 py-8">
-            {/* Header Section */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-4">
-                        <button
-                            onClick={() => window.history.back()}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-                        >
-                            <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-                        </button>
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Assigned Borrowers</h1>
-                            <p className="text-gray-600 dark:text-gray-400 mt-1">
-                                Manage and track your assigned borrowers
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => window.location.href = '/dashboard/borrowers/add'}
-                        className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                        <Plus className="h-5 w-5 mr-2" />
-                        Add New Borrower
-                    </button>
-                </div>
+    const days = Array.from({ length: 365 }, (_, i) => i + 1);
+    const columns = [
+        { key: 'view', label: 'View', sortable: false, width: 'w-12' },
+        { key: 'FullName', label: 'FullName', sortable: true, width: 'w-24' },
+        { key: 'Business', label: 'Business', sortable: true, width: 'w-24' },
+        { key: 'Unique', label: 'Unique#', sortable: true, width: 'w-24' },
+        { key: 'Mobile', label: 'Mobile', sortable: true, width: 'w-24' },
+        { key: 'Email', label: 'Email', sortable: true, width: 'w-24' },
+        { key: 'TotalPaid', label: 'Total Paid', sortable: false, width: 'w-24' },
+        { key: 'OpenLoansBalance', label: 'Open Loans Balance', sortable: false, width: 'w-28' },
+        { key: 'Status', label: 'Status', sortable: false, width: 'w-28' },
+        { key: 'Action', label: 'Action', sortable: false, width: 'w-24' }
+    ]
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Borrowers</p>
-                                <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                                    {borrowers.length}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
-                                <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Borrowers</p>
-                                <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                                    {borrowers.filter(b => b?.status === 'active').length}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-green-50 dark:bg-green-900/50 rounded-lg">
-                                <Users className="h-6 w-6 text-green-600 dark:text-green-400" />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Borrowers</p>
-                                <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
-                                    {borrowers.filter(b => b?.status === 'pending').length}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/50 rounded-lg">
-                                <Users className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Search and Filter Section */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 mb-6">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search by name or client number..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                            />
-                        </div>
-                        <div className="relative">
-                            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                className="pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white appearance-none min-w-[200px]"
-                            >
-                                <option value="all">All Status</option>
-                                <option value="active">Active</option>
-                                <option value="pending">Pending</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Borrowers Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-700/50">
-                            <tr>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Client Number
-                                </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Name
-                                </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Contact
-                                </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Active Loans
-                                </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Last Updated
-                                </th>
-                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {filteredBorrowers.map((borrower) => (
-                                <tr 
-                                    key={borrower.id} 
-                                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                                >
-                                    <td 
-                                        className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
-                                        onClick={() => window.location.href = `/dashboard/borrowers/${borrower.id}`}
-                                    >
-                                        {borrower.client_number}
-                                    </td>
-                                    <td 
-                                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white cursor-pointer"
-                                        onClick={() => window.location.href = `/dashboard/borrowers/${borrower.id}`}
-                                    >
-                                        {borrower.name}
-                                    </td>
-                                    <td 
-                                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white cursor-pointer"
-                                        onClick={() => window.location.href = `/dashboard/borrowers/${borrower.id}`}
-                                    >
-                                        <div className="font-medium">{borrower.email}</div>
-                                        <div className="text-gray-500 dark:text-gray-400">{borrower.phone_number}</div>
-                                    </td>
-                                    <td 
-                                        className="px-6 py-4 whitespace-nowrap cursor-pointer"
-                                        onClick={() => window.location.href = `/dashboard/borrowers/${borrower.id}`}
-                                    >
-                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(borrower.status)}`}>
-                                            {borrower.status?.charAt(0).toUpperCase() + borrower.status?.slice(1)}
-                                        </span>
-                                    </td>
-                                    <td 
-                                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white cursor-pointer"
-                                        onClick={() => window.location.href = `/dashboard/borrowers/${borrower.id}`}
-                                    >
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-                                            {borrower.active_loans_count || 0} Loans
-                                        </span>
-                                    </td>
-                                    <td 
-                                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 cursor-pointer"
-                                        onClick={() => window.location.href = `/dashboard/borrowers/${borrower.id}`}
-                                    >
-                                        {borrower.updated_at ? format(new Date(borrower.updated_at), 'MMM d, yyyy') : 'N/A'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                window.location.href = `/dashboard/loan-officer/borrower-loans/${borrower.id}`;
-                                            }}
-                                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                        >
-                                            <Users className="h-4 w-4 mr-1" />
-                                            View Details
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {filteredBorrowers.length === 0 && (
-                    <div className="text-center py-12">
-                        <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No borrowers found</h3>
-                        <p className="text-gray-500 dark:text-gray-400">
-                            {searchTerm || statusFilter !== 'all' 
-                                ? 'Try adjusting your search or filter criteria'
-                                : 'Start by adding your first borrower'}
-                        </p>
+    const SortableHeader = ({ column, children }) => (
+        <th className={`px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 ${column.width}`}>
+            <div className="flex items-center space-x-1 cursor-pointer hover:text-gray-900">
+                <span>{children}</span>
+                {column.sortable && (
+                    <div className="flex flex-col">
+                        <ArrowDownWideNarrow className="w-3 h-3 text-gray-400" />
                     </div>
                 )}
             </div>
-        </div>
+        </th>
     );
-};
+    return (
+        <div className='min-h-screen bg-gray-200'>
+            <div className="max-w-7xl mx-auto px-4 sm:px-2 lg:px-2 py-4 space-y-4">
+                <div className="mb-6">
+                    <h1 className="text-2xl font-semibold text-gray-900 mb-2">View Borrowers</h1>
+                </div>
 
-export default LoanOfficerBorrowers; 
+                <div className='flex justify-between items-center'>
+                    <button className="text-xs px-2 py-1 border border-slate-300 bg-gray-100 text-gray-700 cursor-pointer">Export Data</button>
+                    <button className="text-xs px-2 py-1 border border-slate-300 bg-gray-100 text-gray-700 cursor-pointer">Show/Hide Columns</button>
+                </div>
+                <div className='bg-gray-50 border-t-2 border-green-500'>
+                    <div className="flex justify-between items-center p-4 ">
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="text"
+                                placeholder="Search loans"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="px-2 py-1 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs w-48"
+                            />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <label className="text-xs text-gray-700">Show</label>
+                            <select
+                                value={entriesPerPage}
+                                onChange={(e) => setEntriesPerPage(parseInt(e.target.value))}
+                                className="px-2 py-1 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+                            >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                            <label className="text-sm text-gray-700">entries</label>
+                        </div>
+                    </div>
+
+
+
+                    {/* Data Table */}
+                    <div className="overflow-x-auto px-4 py-2">
+                        <table className="min-w-full">
+                            <thead>
+                                <tr className="border-b">
+                                    {columns.map((column) => (
+                                        <SortableHeader key={column.key} column={column}>
+                                            {column.label}
+                                        </SortableHeader>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white">
+                                {loading ? (
+                                    <tr><td colSpan={columns.length} className="text-center py-4 text-gray-500">Loading...</td></tr>
+                                ) : error ? (
+                                    <tr><td colSpan={columns.length} className="text-center py-4 text-red-500">{error}</td></tr>
+                                ) : borrowers.length === 0 ? (
+                                    <tr><td colSpan={columns.length} className="text-center py-4 text-gray-500">No borrowers found.</td></tr>
+                                ) : (
+                                    borrowers
+                                        .filter(b => {
+                                            const name = `${b.first_name || ''} ${b.last_name || ''}`.toLowerCase();
+                                            const business = (b.business_name || '').toLowerCase();
+                                            const unique = (b.unique_number || '').toLowerCase();
+                                            const mobile = (b.mobile || '').toLowerCase();
+                                            const email = (b.email || '').toLowerCase();
+                                            return (
+                                                name.includes(searchTerm.toLowerCase()) ||
+                                                business.includes(searchTerm.toLowerCase()) ||
+                                                unique.includes(searchTerm.toLowerCase()) ||
+                                                mobile.includes(searchTerm.toLowerCase()) ||
+                                                email.includes(searchTerm.toLowerCase())
+                                            );
+                                        })
+                                        .slice(0, entriesPerPage)
+                                        .map((b, idx) => (
+                                            <tr key={b.id || idx}>
+                                                <td className='flex gap-1 py-1 px-0.5'>
+                                                    <Link to={`/dashboard/admin/loans?client_id=${b.id || b.client_number}`} className='bg-green-700 text-white text-xs px-2 py-0.5 rounded-md cursor-pointer'>Loans</Link>
+                                                    <button className='bg-blue-500 text-white text-xs px-2 py-0.5 rounded-md cursor-pointer'>Saving</button>
+                                                </td>
+                                                <td className='py-1 px-0.5 text-xs'>
+                                                    <span className='font-semibold text-xs'>{`${b.title ? b.title + '. ' : ''}${b.first_name || ''} ${b.last_name || ''}`.trim()}</span>
+                                                </td>
+                                                <td className='py-1 px-0.5 text-xs'>{b.business_name || ''}</td>
+                                                <td className='py-1 px-0.5 text-xs'>{b.unique_number || ''}</td>
+                                                <td className='py-1 px-0.5 text-xs'>{b.mobile || ''}</td>
+                                                <td className='py-1 px-0.5 text-xs'>{b.email || ''}</td>
+                                                <td className='py-1 px-0.5 text-xs'>0,00</td>
+                                                <td className='py-1 px-0.5 text-xs'>0,00</td>
+                                                <td className='py-1 px-0.5 text-xs'>{b.status || 'Current'}</td>
+                                                <td className="px-2 py-1">
+                                                    <div className="flex items-center">
+                                                        <Link to={`/dashboard/admin/borrowers/${b.id || b.client_number}/add`}>
+                                                            <Pencil className="w-5 h-5 border border-slate-400 bg-gray-200 p-1 cursor-pointer hover:bg-gray-300 rounded-sm" />
+                                                        </Link>
+                                                        <Link2 onClick={() => openAssignModal(b)} className="w-5 h-5 border border-slate-400 bg-gray-200 cursor-pointer hover:bg-gray-300 p-1 rounded-sm ml-1" />
+                                                        <X className="w-5 h-5 border border-slate-400 bg-gray-200 cursor-pointer hover:bg-gray-300 p-1 rounded-sm ml-1" />
+
+
+
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                )}
+                                {/* Summary Row */}
+                                <tr className="text-sm font-medium text-gray-900 bg-gray-300">
+                                    <td className="px-3 py-1 w-12"></td>
+                                    <td className="px-3 py-1 w-32"></td>
+                                    <td className="px-3 py-1 w-24"></td>
+                                    <td className="px-3 py-1 w-24"></td>
+                                    <td className="px-3 py-1 w-24"></td>
+                                    <td className="px-3 py-1 w-24"></td>
+                                    <td className="px-3 py-1 text-center w-28">0,00</td>
+                                    <td className="px-3 py-1 text-center w-28">0,00</td>
+                                    <td className="px-3 py-1 w-24"></td>
+                                    <td className="px-3 py-1 w-32"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+
+                    {/* Pagination */}
+                    <div className="flex justify-between items-center px-4 py-1 bg-white pb-2">
+                        <div className="text-xs text-gray-700">
+                            Showing 0 to 0 of 0 entries
+                        </div>
+                        <div className="flex space-x-2">
+                            <button className="px-2 py-1 border border-gray-300 text-xs text-gray-500 bg-gray-50 cursor-not-allowed">
+                                Previous
+                            </button>
+                            <button className="px-2 py-1 border border-gray-300 text-xs text-gray-500 bg-gray-50 cursor-not-allowed">
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {showAssignModal && (
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs">
+                            <h3 className="text-lg font-semibold mb-4">Assign Loan Officer</h3>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Select Loan Officer</label>
+                                <select
+                                    value={selectedOfficer}
+                                    onChange={e => setSelectedOfficer(e.target.value)}
+                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                >
+                                    <option value="">Select Officer</option>
+                                    {loanOfficers.map(officer => (
+                                        <option key={officer.id} value={officer.id}>
+                                            {officer.first_name} {officer.last_name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {assignError && <div className="text-xs text-red-500 mb-2">{assignError}</div>}
+                            <div className="flex justify-end space-x-2">
+                                <button
+                                    className="px-4 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                                    onClick={closeAssignModal}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="px-4 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                                    disabled={assignLoading || !selectedOfficer}
+                                    onClick={handleAssignOfficer}
+                                >
+                                    {assignLoading ? 'Saving...' : 'Save'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div >
+    )
+}
+
+export default LoanOfficerBorrowers;

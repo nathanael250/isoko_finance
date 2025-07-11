@@ -30,6 +30,7 @@ const LoanOfficerDashboard = () => {
     const [recentApplications, setRecentApplications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddBorrowerModal, setShowAddBorrowerModal] = useState(false);
+    const [borrowerCount, setBorrowerCount] = useState(0);
 
     useEffect(() => {
         fetchDashboardData();
@@ -41,6 +42,15 @@ const LoanOfficerDashboard = () => {
             // Fetch loan officer statistics
             const statsResponse = await api.get('/loan-officer/stats');
             const loansResponse = await api.get('/loan-officer/loans');
+            // Fetch assigned borrowers count
+            let borrowersCount = 0;
+            try {
+                const borrowersRes = await api.get('/loan-officer/borrowers', { params: { assigned_officer: user?.id } });
+                if (borrowersRes.data.success && borrowersRes.data.data && Array.isArray(borrowersRes.data.data.clients)) {
+                    borrowersCount = borrowersRes.data.data.clients.length;
+                }
+            } catch (e) { borrowersCount = 0; }
+            setBorrowerCount(borrowersCount);
 
             if (statsResponse.data.success) {
                 const statsData = statsResponse.data.data.summary;
@@ -75,24 +85,37 @@ const LoanOfficerDashboard = () => {
         }
     };
 
-    const StatCard = ({ title, value, icon: Icon, color, change }) => (
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-medium text-gray-600">{title}</p>
-                    <p className="text-2xl font-bold text-gray-900">{value}</p>
-                    {change && (
-                        <p className={`text-sm ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {change > 0 ? '+' : ''}{change}% from last month
-                        </p>
-                    )}
+    const StatCard = ({ title, value, icon: Icon, color, loading = false }) => {
+        if (loading) {
+            return (
+                <div className="bg-white shadow-sm rounded-lg p-4 relative overflow-hidden animate-pulse">
+                    <div className="flex justify-between items-center mb-3">
+                        <div className="h-4 bg-gray-200 rounded w-24"></div>
+                        <div className="h-7 w-7 bg-gray-200 rounded"></div>
+                    </div>
+                    <div className="h-8 bg-gray-200 rounded w-16"></div>
                 </div>
-                <div className={`p-3 rounded-full ${color}`}>
-                    <Icon className="w-6 h-6 text-white" />
+            );
+        }
+        const colorMap = {
+            'bg-blue-500': 'from-blue-500 to-blue-600',
+            'bg-yellow-500': 'from-yellow-400 to-yellow-500',
+            'bg-green-500': 'from-green-500 to-green-600',
+            'bg-red-500': 'from-red-500 to-red-600',
+            'bg-purple-500': 'from-purple-500 to-purple-600',
+            'bg-indigo-500': 'from-indigo-500 to-indigo-600',
+        };
+        const gradientColor = colorMap[color] || 'from-gray-500 to-gray-600';
+        return (
+            <div className={`bg-gradient-to-r ${gradientColor} shadow-sm rounded-lg p-4 relative overflow-hidden transition-all duration-200 hover:shadow-md`}>
+                <div className="flex justify-between items-center mb-3">
+                    <h2 className="text-gray-600 text-sm font-medium">{title}</h2>
+                    <Icon className={`p-1.5 rounded text-white w-10 h-10 `} />
                 </div>
+                <span className="text-2xl font-bold text-white">{value}</span>
             </div>
-        </div>
-    );
+        );
+    };
 
     const getStatusBadge = (status) => {
         const statusConfig = {
@@ -111,280 +134,188 @@ const LoanOfficerDashboard = () => {
     };
 
     return (
-        <div className="p-6 space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Welcome back, {user?.first_name}!
-                    </h1>
-                    <p className="text-gray-600">Manage loan applications and help customers achieve their goals</p>
+        <div className="min-h-screen bg-gray-200">
+            <div className="p-6 max-w-7xl mx-auto">
+                {/* Header */}
+                <div className="mb-6 flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Loan Officer Dashboard</h1>
+                        <p className="text-gray-600 text-sm mt-1">Manage your assigned borrowers and applications</p>
+                    </div>
+                    <button
+                        onClick={() => navigate('/dashboard/loan-officer/loans/add')}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        <Plus className="w-4 h-4" />
+                        New Loan Application
+                    </button>
                 </div>
-                <button
-                    onClick={() => navigate('/dashboard/loan-officer/loans/add')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                    <Plus className="w-4 h-4" />
-                    New Loan Application
-                </button>
-            </div>
-
-            {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-                <StatCard
-                    title="Total Applications"
-                    value={stats.totalApplications}
-                    icon={FileText}
-                    color="bg-blue-500"
-                    change={12}
-                />
-                <StatCard
-                    title="Pending Review"
-                    value={stats.pendingApplications}
-                    icon={Clock}
-                    color="bg-yellow-500"
-                />
-                <StatCard
-                    title="Approved"
-                    value={stats.approvedApplications}
-                    icon={CheckCircle}
-                    color="bg-green-500"
-                />
-                <StatCard
-                    title="Rejected"
-                    value={stats.rejectedApplications}
-                    icon={XCircle}
-                    color="bg-red-500"
-                />
-                <StatCard
-                    title="Total Amount"
-                    value={`$${stats.totalLoanAmount?.toLocaleString()}`}
-                    icon={DollarSign}
-                    color="bg-purple-500"
-                />
-                <StatCard
-                    title="This Month"
-                    value={stats.thisMonthApplications}
-                    icon={TrendingUp}
-                    color="bg-indigo-500"
-                    change={8}
-                />
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                    <div className="space-y-3">
-                        <button
-                            onClick={() => navigate('/dashboard/loan-officer/loans/add')}
-                            className="w-full text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                        >
-                            <div className="flex items-center gap-3">
-                                <Plus className="w-5 h-5 text-blue-600" />
-                                <span className="font-medium">New Loan Application</span>
-                            </div>
-                        </button>
-                        <button 
-                            onClick={() => setShowAddBorrowerModal(true)}
-                            className="w-full text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                        >
-                            <div className="flex items-center gap-3">
-                                <Users className="w-5 h-5 text-green-600" />
-                                <span className="font-medium">Add New Borrower</span>
-                            </div>
-                        </button>
-                        <button className="w-full text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center gap-3">
-                                <Search className="w-5 h-5 text-purple-600" />
-                                <span className="font-medium">Search Applications</span>
-                            </div>
-                        </button>
+                {/* Main Statistics Grid */}
+                <div className="mb-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                        <StatCard
+                            title="Borrowers"
+                            value={borrowerCount}
+                            icon={Users}
+                            color="bg-green-500"
+                            loading={loading}
+                        />
+                        <StatCard
+                            title="Total Applications"
+                            value={stats.totalApplications}
+                            icon={FileText}
+                            color="bg-blue-500"
+                            loading={loading}
+                        />
+                        <StatCard
+                            title="Pending Review"
+                            value={stats.pendingApplications}
+                            icon={Clock}
+                            color="bg-yellow-500"
+                            loading={loading}
+                        />
+                        <StatCard
+                            title="Approved"
+                            value={stats.approvedApplications}
+                            icon={CheckCircle}
+                            color="bg-green-500"
+                            loading={loading}
+                        />
+                        <StatCard
+                            title="Rejected"
+                            value={stats.rejectedApplications}
+                            icon={XCircle}
+                            color="bg-red-500"
+                            loading={loading}
+                        />
+                        <StatCard
+                            title="Total Amount"
+                            value={`$${stats.totalLoanAmount?.toLocaleString()}`}
+                            icon={DollarSign}
+                            color="bg-purple-500"
+                            loading={loading}
+                        />
+                        <StatCard
+                            title="This Month"
+                            value={stats.thisMonthApplications}
+                            icon={TrendingUp}
+                            color="bg-indigo-500"
+                            loading={loading}
+                        />
                     </div>
                 </div>
-
-                {/* Application Status Overview */}
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Application Status</h3>
-                    <div className="space-y-4">
+                {/* Recent Applications Section */}
+                <div className="bg-white shadow-sm rounded-lg border">
+                    <div className="p-6 border-b">
                         <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Pending</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-20 bg-gray-200 rounded-full h-2">
-                                    <div
-                                        className="bg-yellow-500 h-2 rounded-full"
-                                        style={{ width: `${(stats.pendingApplications / stats.totalApplications) * 100}%` }}
-                                    ></div>
-                                </div>
-                                <span className="text-sm font-medium">{stats.pendingApplications}</span>
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Approved</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-20 bg-gray-200 rounded-full h-2">
-                                    <div
-                                        className="bg-green-500 h-2 rounded-full"
-                                        style={{ width: `${(stats.approvedApplications / stats.totalApplications) * 100}%` }}
-                                    ></div>
-                                </div>
-                                <span className="text-sm font-medium">{stats.approvedApplications}</span>
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Rejected</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-20 bg-gray-200 rounded-full h-2">
-                                    <div
-                                        className="bg-red-500 h-2 rounded-full"
-                                        style={{ width: `${(stats.rejectedApplications / stats.totalApplications) * 100}%` }}
-                                    ></div>
-                                </div>
-                                <span className="text-sm font-medium">{stats.rejectedApplications}</span>
-                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900">Recent Applications</h3>
+                            <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                View All
+                            </button>
                         </div>
                     </div>
-                </div>
-
-                {/* Monthly Performance */}
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Performance</h3>
-                    <div className="space-y-4">
-                        <div className="text-center">
-                            <div className="text-3xl font-bold text-blue-600">{stats.thisMonthApplications}</div>
-                            <div className="text-sm text-gray-600">Applications This Month</div>
-                        </div>
-                        <div className="pt-4 border-t">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Target: 25</span>
-                                <span className="font-medium">
-                                    {Math.round((stats.thisMonthApplications / 25) * 100)}%
-                                </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                <div
-                                    className="bg-blue-500 h-2 rounded-full"
-                                    style={{ width: `${Math.min((stats.thisMonthApplications / 25) * 100, 100)}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Recent Applications */}
-            <div className="bg-white rounded-lg shadow-sm border">
-                <div className="p-6 border-b">
-                    <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-semibold text-gray-900">Recent Applications</h3>
-                        <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            View All
-                        </button>
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Borrower
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Loan Amount
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Purpose
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Date Applied
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {loading ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50">
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-4 text-center">
-                                        <div className="flex justify-center items-center">
-                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                                            <span className="ml-2">Loading applications...</span>
-                                        </div>
-                                    </td>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Borrower
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Loan Amount
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Purpose
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Date Applied
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Actions
+                                    </th>
                                 </tr>
-                            ) : recentApplications.length === 0 ? (
-                                <tr>
-                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                                        No recent applications found
-                                    </td>
-                                </tr>
-                            ) : (
-                                recentApplications.map((application) => (
-                                    <tr key={application.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="flex-shrink-0 h-8 w-8">
-                                                    <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-                                                        <span className="text-xs font-medium text-gray-700">
-                                                            {application.borrower?.first_name?.charAt(0)}
-                                                            {application.borrower?.last_name?.charAt(0)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="ml-3">
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                        {application.borrower?.first_name} {application.borrower?.last_name}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                        {application.borrower?.email}
-                                                    </div>
-                                                </div>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-4 text-center">
+                                            <div className="flex justify-center items-center">
+                                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                                <span className="ml-2">Loading applications...</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            ${application.loan_amount?.toLocaleString()}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {application.loan_purpose}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {getStatusBadge(application.status)}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {new Date(application.createdAt).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button className="text-blue-600 hover:text-blue-900 mr-3">
-                                                View
-                                            </button>
-                                            <button className="text-green-600 hover:text-green-900">
-                                                Edit
-                                            </button>
+                                    </tr>
+                                ) : recentApplications.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                                            No recent applications found
                                         </td>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                ) : (
+                                    recentApplications.map((application) => (
+                                        <tr key={application.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="flex-shrink-0 h-8 w-8">
+                                                        <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+                                                            <span className="text-xs font-medium text-gray-700">
+                                                                {application.borrower?.first_name?.charAt(0)}
+                                                                {application.borrower?.last_name?.charAt(0)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="ml-3">
+                                                        <div className="text-sm font-medium text-gray-900">
+                                                            {application.borrower?.first_name} {application.borrower?.last_name}
+                                                        </div>
+                                                        <div className="text-sm text-gray-500">
+                                                            {application.borrower?.email}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                ${application.loan_amount?.toLocaleString()}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {application.loan_purpose}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {getStatusBadge(application.status)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {new Date(application.createdAt).toLocaleDateString()}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button className="text-blue-600 hover:text-blue-900 mr-3">
+                                                    View
+                                                </button>
+                                                <button className="text-green-600 hover:text-green-900">
+                                                    Edit
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
+                {/* Add Borrower Modal */}
+                {showAddBorrowerModal && (
+                    <AddBorrowerModal
+                        isOpen={showAddBorrowerModal}
+                        onClose={() => setShowAddBorrowerModal(false)}
+                        onBorrowerAdded={() => {
+                            fetchDashboardData();
+                            setShowAddBorrowerModal(false);
+                        }}
+                    />
+                )}
             </div>
-
-            {/* Add Borrower Modal */}
-            {showAddBorrowerModal && (
-                <AddBorrowerModal
-                    isOpen={showAddBorrowerModal}
-                    onClose={() => setShowAddBorrowerModal(false)}
-                    onBorrowerAdded={() => {
-                        fetchDashboardData();
-                        setShowAddBorrowerModal(false);
-                    }}
-                />
-            )}
         </div>
     );
 };

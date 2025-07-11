@@ -38,6 +38,13 @@ const LoanTypeConfiguration = React.lazy(() => import('./pages/admin/LoanTypeCon
 const LoanTypeDetails = React.lazy(() => import('./pages/admin/LoanTypeDetails'));
 const UserDetails = React.lazy(() => import('./pages/admin/UserDetails'));
 const EditUser = React.lazy(() => import('./pages/admin/EditUser'));
+const OneMonrhLateLoan = React.lazy(() => import('./pages/admin/OneMonthLateLoan'));
+const AdminLoanCalculator = React.lazy(() => import('./pages/admin/LoanCalculator'));
+const Guarantors = React.lazy(() => import('./pages/admin/Guarantors'));
+const LoanComments = React.lazy(() => import('./pages/admin/LoanComments'));
+const AllBorrowers = React.lazy(() => import('./pages/borrowers/AllBorrowers'));
+const AddBorrower = React.lazy(() => import('./pages/borrowers/AddBorrower'));
+const EditBorrower = React.lazy(() => import('./pages/borrowers/EditBorrower'));
 
 
 // Supervisor Pages
@@ -58,6 +65,8 @@ const LoanCalculator = React.lazy(() => import('./pages/loan-officer/LoanCalcula
 const MyLoans = React.lazy(() => import('./pages/loan-officer/MyLoans'));
 const ClientLoans = React.lazy(() => import('./pages/loan-officer/ClientLoans'));
 const BorrowerLoanDetails = React.lazy(() => import('./pages/loan-officer/BorrowerLoanDetails'));
+const AddBorrower_Loan_Officer = React.lazy(() => import('./pages/loan-officer/AddBorrower'));
+
 
 // Cashier Pages
 const Transactions = React.lazy(() => import('./pages/cashier/Transactions'));
@@ -69,12 +78,11 @@ const ProfilePage = React.lazy(() => import('./pages/shared/ProfilePage'));
 const NotFoundPage = React.lazy(() => import('./pages/shared/NotFoundPage'));
 const UnauthorizedPage = React.lazy(() => import('./pages/shared/UnauthorizedPage'));
 
-// Borrowers Pages
-const AllBorrowers = React.lazy(() => import('./pages/borrowers/AllBorrowers'));
-const AddBorrower = React.lazy(() => import('./pages/borrowers/AddBorrower'));
+
 
 // New imports
 import ReceiptDisplay from './pages/ReceiptDisplay';
+
 
 // AppContent component that uses useAuth - NO Router here
 function AppContent() {
@@ -156,6 +164,7 @@ function AppContent() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="admin/loan-types"
             element={
@@ -202,6 +211,37 @@ function AppContent() {
               <ProtectedRoute allowedRoles={['admin']}>
                 <React.Suspense fallback={<LoadingSpinner />}>
                   <LoanTypeDetails />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          {/* Borrowers Routes */}
+          <Route
+            path="admin/borrowers"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'supervisor']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <AllBorrowers />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/borrowers/add"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'supervisor', 'loan-officer']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <AddBorrower />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/borrowers/:id/add"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'supervisor', 'loan-officer']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <EditBorrower />
                 </React.Suspense>
               </ProtectedRoute>
             }
@@ -296,8 +336,50 @@ function AppContent() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="admin/one-month-late"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <OneMonrhLateLoan />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/loan-calculator"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <AdminLoanCalculator />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/guarantors"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <Guarantors />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/loan-comments"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <LoanComments />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="admin/settings"
+
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <React.Suspense fallback={<LoadingSpinner />}>
@@ -359,27 +441,7 @@ function AppContent() {
             }
           />
 
-          {/* Borrowers Routes */}
-          <Route
-            path="borrowers"
-            element={
-              <ProtectedRoute allowedRoles={['admin', 'supervisor']}>
-                <React.Suspense fallback={<LoadingSpinner />}>
-                  <AllBorrowers />
-                </React.Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="borrowers/add"
-            element={
-              <ProtectedRoute allowedRoles={['admin', 'supervisor', 'loan-officer']}>
-                <React.Suspense fallback={<LoadingSpinner />}>
-                  <AddBorrower />
-                </React.Suspense>
-              </ProtectedRoute>
-            }
-          />
+
 
           {/* Loan Officer Routes */}
           <Route
@@ -408,6 +470,16 @@ function AppContent() {
               <ProtectedRoute allowedRoles={['loan-officer', 'supervisor', 'admin']}>
                 <React.Suspense fallback={<LoadingSpinner />}>
                   <LoanOfficerBorrowers />
+                </React.Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="loan-officer/borrowers/add"
+            element={
+              <ProtectedRoute allowedRoles={['loan-officer',]}>
+                <React.Suspense fallback={<LoadingSpinner />}>
+                  <AddBorrower_Loan_Officer />
                 </React.Suspense>
               </ProtectedRoute>
             }

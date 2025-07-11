@@ -15,13 +15,13 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
-    port: process.env.PORT || 6000,
-    strictPort: true,
-    // ✅ REMOVE THE PROXY COMPLETELY - No proxy needed for production
+    host: 'localhost', // Changed from '0.0.0.0' to 'localhost' for development
+    port: 5173, // Set default port to 5173
+    open: true, // Automatically open browser
+    strictPort: false, // Allow port fallback if 5173 is busy
   },
   preview: {
-    host: '0.0.0.0',
+    host: '0.0.0.0', // Keep this for production preview
     port: process.env.PORT || 3000,
     strictPort: true,
     allowedHosts: [

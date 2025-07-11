@@ -2,39 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
-    ArrowRight,
     Save,
     Search,
     User,
     DollarSign,
     Calendar,
     FileText,
-    Calculator,
     Shield,
-    CheckCircle,
-    AlertCircle,
-    X, // Keeping X just in case for internal form resets if needed, though not directly for modal close
     Plus,
-    Info
+    X,
+    ChevronDown,
+    ChevronUp
 } from 'lucide-react';
+import Select from 'react-select';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 import api from '../../services/api';
-import { borrowerService } from '../../services/borrowerService'; // Use borrowerService for clients
-import { loanTypeService } from '../../services/loanTypeService'; // Use loanTypeService for loan types
+import { borrowerService } from '../../services/borrowerService';
+import { loanTypeService } from '../../services/loanTypeService';
 
 const AddLoan = () => {
     const navigate = useNavigate();
-    const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
-    const [clients, setClients] = useState([]); // Renamed from borrowers to clients
-    const [selectedClient, setSelectedClient] = useState(null); // Renamed from selectedBorrower
+    const [clients, setClients] = useState([]);
+    const [selectedClient, setSelectedClient] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [showNewClientForm, setShowNewClientForm] = useState(false); // Renamed from showNewBorrowerForm
+    const [showNewClientForm, setShowNewClientForm] = useState(false);
+    const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
     const [errors, setErrors] = useState({});
     const [loanTypes, setLoanTypes] = useState([]);
     const [loanCalculation, setLoanCalculation] = useState(null);
     const [selectedLoanType, setSelectedLoanType] = useState(null);
 
-    // Loan data state - directly from NewLoanApplicationModal.jsx
+    // Loan data state
     const [loanData, setLoanData] = useState({
         loan_type_id: '',
         loan_amount: '',
@@ -42,16 +42,17 @@ const AddLoan = () => {
         interest_rate: '',
         repayment_frequency: 'monthly',
         loan_purpose: '',
-        collateral_type: '',
+        collateral_type: 'none',
         collateral_value: '',
+        collateral_description: '',
         guarantor_name: '',
         guarantor_phone: '',
         guarantor_address: '',
         notes: ''
     });
 
-    // New client data state - directly from NewLoanApplicationModal.jsx's newBorrowerData
-    const [newClientData, setNewClientData] = useState({ // Renamed from newBorrowerData
+    // New client data state
+    const [newClientData, setNewClientData] = useState({
         first_name: '',
         last_name: '',
         email: '',
@@ -65,7 +66,7 @@ const AddLoan = () => {
         monthly_income: ''
     });
 
-    // Sample data for development (keeping as fallback if needed)
+    // Sample data for development
     const sampleClients = [
         { id: 1, client_number: 'CLT001', first_name: 'John', last_name: 'Doe', email: 'john.doe@email.com', mobile: '+250788123456', status: 'active' },
         { id: 2, client_number: 'CLT002', first_name: 'Jane', last_name: 'Smith', email: 'jane.smith@email.com', mobile: '+250788654321', status: 'active' }
@@ -76,29 +77,62 @@ const AddLoan = () => {
         { id: 2, name: 'Business Loan', code: 'BUSINESS', nominal_interest_rate: 12.0, min_amount: 100000, max_amount: 10000000, min_term_months: 6, max_term_months: 60, allowed_frequencies: ['monthly', 'quarterly'], default_frequency: 'monthly' }
     ];
 
+    // Options for selects
+    const AllLoansStatus = [
+        { value: 'active', label: 'Active' },
+        { value: 'pending', label: 'Pending' },
+        { value: 'approved', label: 'Approved' },
+        { value: 'disbursed', label: 'Disbursed' }
+    ];
 
-    // Fetch loan types - adapted from NewLoanApplicationModal.jsx
+    const AllRepaymentsMethods = [
+        { value: 'cash', label: 'Cash' },
+        { value: 'bank_transfer', label: 'Bank Transfer' },
+        { value: 'mobile_money', label: 'Mobile Money' },
+        { value: 'check', label: 'Check' }
+    ];
+
+    // Fetch functions
     const fetchLoanTypes = async () => {
         try {
             const response = await loanTypeService.getActiveLoanTypes();
             if (response.success) {
                 setLoanTypes(response.data.loan_types);
             } else {
-                setLoanTypes(sampleLoanTypes); // Fallback
+                setLoanTypes(sampleLoanTypes);
                 console.error('Error fetching loan types:', response.message);
-                setErrors({ general: 'Failed to fetch loan types. Using sample data.' });
             }
         } catch (error) {
             console.error('Error fetching loan types:', error);
-            setLoanTypes(sampleLoanTypes); // Fallback
-            setErrors({ general: 'Failed to fetch loan types. Using sample data.' });
+            setLoanTypes(sampleLoanTypes);
         }
     };
 
-    // Calculate loan preview - adapted from NewLoanApplicationModal.jsx
+    const fetchClients = async (search = '') => {
+        try {
+            setLoading(true);
+            const response = await borrowerService.getBorrowers({
+                search: search,
+                limit: 100
+            });
+
+            if (response.success) {
+                setClients(response.data.clients || []);
+            } else {
+                setClients(sampleClients);
+                console.error('Error fetching clients:', response.message);
+            }
+        } catch (error) {
+            console.error('Error fetching clients:', error);
+            setClients(sampleClients);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const calculateLoanPreview = async () => {
         if (!loanData.loan_type_id || !loanData.loan_amount || !loanData.loan_term) {
-            setLoanCalculation(null); // Clear calculation if inputs are incomplete
+            setLoanCalculation(null);
             return;
         }
 
@@ -117,71 +151,41 @@ const AddLoan = () => {
             if (response.success) {
                 setLoanCalculation(response.data.calculations);
             } else {
-                setLoanCalculation(null); // Clear calculation on error
+                setLoanCalculation(null);
                 setErrors({ general: response.message || 'Failed to calculate loan preview' });
             }
         } catch (error) {
             console.error('Error calculating loan preview:', error);
-            setLoanCalculation(null); // Clear calculation on error
+            setLoanCalculation(null);
             setErrors({ general: error.response?.data?.message || 'Failed to calculate loan preview' });
         } finally {
             setLoading(false);
         }
     };
 
-    // Fetch clients function - adapted from NewLoanApplicationModal.jsx's fetchBorrowers
-    const fetchClients = async (search = '') => { // Renamed from fetchBorrowers
-        try {
-            setLoading(true);
-            const response = await borrowerService.getBorrowers({ // Using borrowerService
-                search: search,
-                limit: 100 // Increased limit to fetch more clients by default for a page
-            });
-
-            if (response.success) {
-                setClients(response.data.clients || []); // Expecting response.data.clients
-            } else {
-                setClients(sampleClients); // Fallback
-                console.error('Error fetching clients:', response.message);
-                setErrors({ general: 'Failed to fetch clients. Using sample data.' });
-            }
-        } catch (error) {
-            console.error('Error fetching clients:', error);
-            setClients(sampleClients); // Fallback
-            setErrors({ general: 'Failed to fetch clients. Using sample data.' });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Create new client function - adapted from NewLoanApplicationModal.jsx's createNewBorrower
-    const createNewClient = async () => { // Renamed from createNewBorrower
+    const createNewClient = async () => {
         try {
             setLoading(true);
             setErrors({});
 
-            // Validate required fields
             if (!newClientData.first_name || !newClientData.last_name ||
                 !newClientData.email || !newClientData.phone_number) {
                 setErrors({ newClient: 'Please fill in all required fields: First Name, Last Name, Email, Phone Number.' });
                 return;
             }
 
-            const response = await api.post('/clients', newClientData); // Using api.post directly
+            const response = await api.post('/clients', newClientData);
 
             if (response.data.success) {
                 alert('New client created successfully!');
-                // Assuming response.data.client or response.data.data.client based on backend
                 setSelectedClient(response.data.client || response.data.data.client);
                 setShowNewClientForm(false);
-                setNewClientData({ // Reset new client form
+                setNewClientData({
                     first_name: '', last_name: '', email: '', phone_number: '',
                     date_of_birth: '', gender: '', national_id: '', address: '',
                     occupation: '', employer: '', monthly_income: ''
                 });
-
-                fetchClients(); // Refresh client list with new client
-                setStep(2); // Move to Loan Details step
+                fetchClients();
             } else {
                 setErrors({ newClient: response.data.message || 'Failed to create client' });
             }
@@ -195,17 +199,13 @@ const AddLoan = () => {
         }
     };
 
-    // Submit loan application - adapted from NewLoanApplicationModal.jsx
     const handleSubmit = async (e) => {
         e.preventDefault();
-        // Validate the current step (Review & Submit, which is step 4 now) before attempting to submit
-        if (!validateStep(step)) return;
-
+        
         try {
             setLoading(true);
             setErrors({});
 
-            // Comprehensive validation for final submission
             if (!selectedClient) {
                 setErrors({ general: 'Please select a client to proceed.' });
                 return;
@@ -214,26 +214,7 @@ const AddLoan = () => {
                 setErrors({ general: 'Please ensure all required loan details are filled.' });
                 return;
             }
-            if (!selectedLoanType) {
-                setErrors({ general: 'Invalid loan type selected. Please re-select.' });
-                return;
-            }
 
-            // If security is required, ensure collateral details are present
-            if (selectedLoanType.requires_collateral) {
-                if (loanData.collateral_type === 'none' || !loanData.collateral_value || parseFloat(loanData.collateral_value) <= 0) {
-                    setErrors({ general: 'This loan type requires collateral. Please provide valid collateral details.' });
-                    return;
-                }
-            }
-            if (selectedLoanType.requires_guarantor) {
-                if (!loanData.guarantor_name || !loanData.guarantor_phone) {
-                    setErrors({ general: 'This loan type requires a guarantor. Please provide guarantor name and phone.' });
-                    return;
-                }
-            }
-
-            // Prepare loan data matching your backend expectations
             const loanPayload = {
                 client_id: selectedClient.id,
                 loan_type: parseInt(loanData.loan_type_id),
@@ -243,11 +224,10 @@ const AddLoan = () => {
                 loan_term_months: parseInt(loanData.loan_term),
                 repayment_frequency: loanData.repayment_frequency || selectedLoanType.default_frequency || 'monthly',
                 loan_purpose: loanData.loan_purpose || '',
-                economic_sector: 'other', // Default sector, adjust if needed
+                economic_sector: 'other',
                 collateral_type: loanData.collateral_type || 'none',
                 collateral_value: loanData.collateral_type !== 'none' ? parseFloat(loanData.collateral_value || 0) : 0,
-                collateral_description: (loanData.collateral_type === 'guarantor' && loanData.guarantor_name) ?
-                    `Guarantor: ${loanData.guarantor_name}, Phone: ${loanData.guarantor_phone || ''}, Address: ${loanData.guarantor_address || ''}` : loanData.collateral_description || null,
+                collateral_description: loanData.collateral_description || null,
                 guarantor_name: loanData.guarantor_name || null,
                 guarantor_phone: loanData.guarantor_phone || null,
                 guarantor_address: loanData.guarantor_address || null,
@@ -261,8 +241,7 @@ const AddLoan = () => {
             if (response.data.success) {
                 console.log('Loan application created successfully:', response.data);
                 alert('Loan application created successfully!');
-                // After successful creation, redirect to the loans list
-                navigate('/loans');
+                navigate('/dashboard/admin/loans');
             } else {
                 setErrors({ general: response.data.message || 'Failed to create loan application' });
             }
@@ -276,18 +255,17 @@ const AddLoan = () => {
         }
     };
 
-    // Handle client search - adapted from NewLoanApplicationModal.jsx's handleBorrowerSearch
-    const handleClientSearch = (e) => { // Renamed from handleBorrowerSearch
+    // Event handlers
+    const handleClientSearch = (e) => {
         const value = e.target.value;
         setSearchTerm(value);
 
         clearTimeout(window.searchTimeout);
         window.searchTimeout = setTimeout(() => {
-            fetchClients(value); // Calls the adapted fetchClients
+            fetchClients(value);
         }, 300);
     };
 
-    // Handle loan data change - adapted from NewLoanApplicationModal.jsx
     const handleLoanDataChange = (e) => {
         const { name, value } = e.target;
         setLoanData(prev => ({
@@ -295,24 +273,18 @@ const AddLoan = () => {
             [name]: value
         }));
 
-        // Clear error when user starts typing
         if (errors[name]) {
             setErrors(prev => ({
                 ...prev,
                 [name]: ''
             }));
         }
-        if (errors.general) { // Also clear general errors that might be related to input
-            setErrors(prev => ({ ...prev, general: '' }));
-        }
 
-        // Recalculate loan preview when relevant fields change
         if (['loan_amount', 'loan_term', 'repayment_frequency', 'loan_type_id', 'collateral_value'].includes(name)) {
             clearTimeout(window.calculationTimeout);
             window.calculationTimeout = setTimeout(() => {
-                // Ensure all required fields for calculation are present
                 if (loanData.loan_type_id && loanData.loan_amount && loanData.loan_term) {
-                    calculateLoanPreview(); // Call the adapted calculateLoanPreview
+                    calculateLoanPreview();
                 } else {
                     setLoanCalculation(null);
                 }
@@ -320,151 +292,23 @@ const AddLoan = () => {
         }
     };
 
-    // Handle new client data change - adapted from NewLoanApplicationModal.jsx's handleNewBorrowerDataChange
-    const handleNewClientDataChange = (e) => { // Renamed from handleNewBorrowerDataChange
+    const handleNewClientDataChange = (e) => {
         const { name, value } = e.target;
         setNewClientData(prev => ({
             ...prev,
             [name]: value
         }));
-        if (errors.newClient) { // Clear new client errors on input
+        if (errors.newClient) {
             setErrors(prev => ({ ...prev, newClient: '' }));
         }
     };
 
-    // Reset form - adapted from NewLoanApplicationModal.jsx (simplified for page)
-    const resetForm = () => {
-        setStep(1);
-        setSelectedClient(null);
-        setSearchTerm('');
-        setShowNewClientForm(false);
-        setLoanData({
-            loan_type_id: '', loan_amount: '', loan_term: '', interest_rate: '',
-            repayment_frequency: 'monthly', loan_purpose: '', collateral_type: '',
-            collateral_value: '', guarantor_name: '', guarantor_phone: '',
-            guarantor_address: '', notes: ''
-        });
-        setNewClientData({
-            first_name: '', last_name: '', email: '', phone_number: '',
-            date_of_birth: '', gender: '', national_id: '', address: '',
-            occupation: '', employer: '', monthly_income: ''
-        });
-        setErrors({});
-        setLoanCalculation(null);
-    };
-
-    // Navigation functions - adapted for 4 steps
-    const handleNext = async () => { // Renamed from nextStep
-        if (validateStep(step)) {
-            if (step === 2) { // After Loan Details, calculate before moving to Security
-                await calculateLoanPreview(); // Call the adapted calculateLoanPreview
-            }
-            setStep(prev => prev + 1);
-            setErrors({}); // Clear errors on step change
-        }
-    };
-
-    const handlePrevious = () => { // Renamed from prevStep
-        setStep(prev => prev - 1);
-        setErrors({}); // Clear errors on step change
-    };
-
-    // Validation for each step - adapted for 4 steps
-    const validateStep = (currentStep) => {
-        const newErrors = {};
-
-        switch (currentStep) {
-            case 1: // Client Selection
-                if (!selectedClient && !showNewClientForm) { // If no client selected and not creating new
-                    newErrors.general = 'Please select an existing client or add a new one to proceed.';
-                } else if (showNewClientForm) { // If creating new, validate new client form
-                    if (!newClientData.first_name || !newClientData.last_name ||
-                        !newClientData.email || !newClientData.phone_number) {
-                        newErrors.newClient = 'Please fill in all required fields for the new client.';
-                    }
-                }
-                break;
-
-            case 2: // Loan Details
-                if (!loanData.loan_type_id) {
-                    newErrors.loan_type_id = 'Please select a loan type.';
-                } else if (!selectedLoanType) { // Ensure selectedLoanType is set
-                    newErrors.loan_type_id = 'Invalid loan type selected. Please re-select.';
-                }
-
-                if (!loanData.loan_amount) {
-                    newErrors.loan_amount = 'Please enter loan amount.';
-                } else if (selectedLoanType) {
-                    const amount = parseFloat(loanData.loan_amount);
-                    if (isNaN(amount) || amount < selectedLoanType.min_amount || amount > selectedLoanType.max_amount) {
-                        newErrors.loan_amount = `Amount must be between ${selectedLoanType.min_amount?.toLocaleString()} and ${selectedLoanType.max_amount?.toLocaleString()}.`;
-                    }
-                }
-                if (!loanData.loan_term) {
-                    newErrors.loan_term = 'Please enter loan term.';
-                } else if (selectedLoanType) {
-                    const term = parseInt(loanData.loan_term);
-                    if (isNaN(term) || term < selectedLoanType.min_term_months || term > selectedLoanType.max_term_months) {
-                        newErrors.loan_term = `Term must be between ${selectedLoanType.min_term_months} and ${selectedLoanType.max_term_months} months.`;
-                    }
-                }
-                if (!loanData.loan_purpose) {
-                    newErrors.loan_purpose = 'Please describe the loan purpose.';
-                }
-                break;
-
-            case 3: // Security & Collateral
-                if (loanData.collateral_type !== 'none') {
-                    if (!loanData.collateral_description) {
-                        newErrors.collateral_description = 'Please describe the collateral.';
-                    }
-                    if (!loanData.collateral_value || parseFloat(loanData.collateral_value) <= 0) {
-                        newErrors.collateral_value = 'Please enter a valid collateral value.';
-                    }
-                }
-                if (loanData.collateral_type === 'guarantor') {
-                    if (!loanData.guarantor_name) {
-                        newErrors.guarantor_name = 'Please enter guarantor name.';
-                    }
-                    if (!loanData.guarantor_phone) {
-                        newErrors.guarantor_phone = 'Please enter guarantor phone number.';
-                    }
-                }
-                // Check if loan type requires collateral/guarantor but not provided
-                if (selectedLoanType) {
-                    if (selectedLoanType.requires_collateral && loanData.collateral_type === 'none') {
-                        newErrors.collateral_type = 'This loan type requires security. Please select a security type other than "None".';
-                    }
-                    if (selectedLoanType.requires_guarantor && loanData.collateral_type !== 'guarantor') { // Assuming guarantor is a type of collateral
-                        newErrors.collateral_type = 'This loan type requires a guarantor.';
-                    }
-                }
-                break;
-
-            case 4: // Review & Submit (final validation before submission)
-                // This step relies on previous validations, but a final check for critical fields
-                if (!selectedClient || !loanData.loan_type_id || !loanData.loan_amount || !loanData.loan_term) {
-                    newErrors.general = 'Please complete all required fields in previous steps before submitting.';
-                }
-                break;
-
-            default:
-                break;
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    // Handle client selection - adapted from NewLoanApplicationModal.jsx's selectBorrower
-    const selectClient = (client) => { // Renamed from selectBorrower
+    const selectClient = (client) => {
         setSelectedClient(client);
-        setLoanData(prev => ({ ...prev, client_id: client.id })); // Set client_id in loanData
+        setLoanData(prev => ({ ...prev, client_id: client.id }));
     };
 
-    // Handle loan type selection - adapted from NewLoanApplicationModal.jsx
     const selectLoanType = (loanType) => {
-        // Ensure we have all required properties with fallback values
         const processedLoanType = {
             ...loanType,
             min_term_months: loanType.min_term_months || 1,
@@ -484,7 +328,6 @@ const AddLoan = () => {
         }));
     };
 
-    // Handle loan type change in select dropdown
     const handleLoanTypeChange = (e) => {
         const loanTypeId = e.target.value;
         const selectedType = loanTypes.find(type => type.id === parseInt(loanTypeId));
@@ -493,913 +336,890 @@ const AddLoan = () => {
         }
     };
 
+    const toggleAdvancedSearch = () => {
+        setShowAdvancedSearch(!showAdvancedSearch);
+    };
 
-    // Initial data fetch on component mount
+    // Initial data fetch
     useEffect(() => {
-        fetchClients(); // Initial fetch for clients
-        fetchLoanTypes(); // Initial fetch for loan types
+        fetchClients();
+        fetchLoanTypes();
     }, []);
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="max-w-4xl mx-auto">
-                <div className="flex items-center mb-6">
+        <div className="min-h-screen bg-gray-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-2 lg:px-2 py-4 space-y-4">
+                {/* Header */}
+                <div className="mb-6">
+                    <div className="flex items-center mb-2">
                         <button
-                        onClick={() => navigate('/loans')}
-                        className="mr-4 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            onClick={() => navigate('/dashboard/admin/loans')}
+                            className="mr-4 text-gray-600 hover:text-gray-900"
                         >
-                        <ArrowLeft className="h-6 w-6" />
+                            <ArrowLeft className="h-6 w-6" />
                         </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Add New Loan</h1>
+                        <h1 className="text-2xl font-semibold text-gray-900">Add New Loan</h1>
                     </div>
-
-                {errors.general && (
-                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-lg">
-                        <div className="flex items-center">
-                            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                            <p className="text-red-700 dark:text-red-200">{errors.general}</p>
+                    <p className="text-gray-600 text-sm">
+                        Create a new loan application by selecting a client and filling in the loan details.
+                    </p>
                 </div>
+
+                {/* Error Display */}
+                {errors.general && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                        <div className="text-red-800 text-sm">{errors.general}</div>
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                {/* Progress Steps */}
-                    <div className="mb-8">
-                    <div className="flex items-center justify-between">
-                            {[1, 2, 3, 4].map((stepNumber) => (
-                                <React.Fragment key={stepNumber}>
-                                    <div
-                                        className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= stepNumber
-                                            ? 'bg-primary text-white'
-                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                                            }`}
-                                    >
-                                        {stepNumber}
-                                        </div>
-                                    {stepNumber < 4 && (
-                                        <div
-                                            className={`w-full h-1 mx-2 ${step > stepNumber ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-700'
-                                                }`}
+                {/* Advanced Search Toggle */}
+                <div className='space-x-1 text-sm'>
+                    <span className='font-semibold'>Advanced Search:</span>
+                    <span 
+                        className='text-blue-500 font-semibold cursor-pointer hover:text-blue-700 transition-colors duration-200 inline-flex items-center gap-1'
+                                                onClick={toggleAdvancedSearch}
+                    >
+                        {showAdvancedSearch ? 'Click here to Hide' : 'Click here to Show'}
+                        {showAdvancedSearch ? (
+                            <ChevronUp className="w-4 h-4" />
+                        ) : (
+                            <ChevronDown className="w-4 h-4" />
+                        )}
+                    </span>
+                </div>
+
+                {/* Animated Advanced Search Form */}
+                <div 
+                    className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                        showAdvancedSearch 
+                            ? 'max-h-[600px] opacity-100' 
+                            : 'max-h-0 opacity-0'
+                    }`}
+                >
+                    <div className='bg-white px-2 py-4 border-t-2 border-green-500'>
+                        <form className='text-sm space-y-2'>
+                            <span className='text-xs text-slate-600 pb-2'>All fields are optional. You can type or select as many fields as you like.</span>
+                            
+                            <div className='flex justify-between gap-8'>
+                                <Select
+                                    isMulti
+                                    name="loan_status"
+                                    options={AllLoansStatus}
+                                    className="basic-multi-select flex-1"
+                                    classNamePrefix="select"
+                                    placeholder="Select Loan Status"
+                                />
+                                <Select
+                                    isMulti
+                                    name="repayment_methods"
+                                    options={AllRepaymentsMethods}
+                                    className="basic-multi-select flex-1"
+                                    classNamePrefix="select"
+                                    placeholder="Select Repayment Methods"
+                                />
+                            </div>
+                            
+                            <div className='flex justify-between gap-8'>
+                                <input 
+                                    type="text" 
+                                    className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2' 
+                                    placeholder='Borrower Name or Business Name' 
+                                />
+                                <input 
+                                    type="text" 
+                                    className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2' 
+                                    placeholder='Loan #' 
+                                />
+                            </div>
+                            
+                            <div className='flex justify-between gap-8'>
+                                <select className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2'>
+                                    <option value="">Select Loan Officer</option>
+                                    <option value="1">John Smith</option>
+                                    <option value="2">Jane Doe</option>
+                                </select>
+                                <select className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2'>
+                                    <option value="">Select Branch</option>
+                                    <option value="main">Main Branch</option>
+                                    <option value="downtown">Downtown Branch</option>
+                                </select>
+                            </div>
+                            
+                            <div className='flex justify-between gap-8'>
+                                <input 
+                                    type="number" 
+                                    className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2' 
+                                    placeholder='Min Amount' 
+                                />
+                                <input 
+                                    type="number" 
+                                    className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2' 
+                                    placeholder='Max Amount' 
+                                />
+                            </div>
+                            
+                            <div className='flex justify-between gap-8'>
+                                <div className='flex gap-2 flex-1 justify-between'>
+                                    <div className='flex-grow'>
+                                        <DatePicker
+                                            selected={null}
+                                            onChange={(date) => {}}
+                                            placeholderText='From date'
+                                            wrapperClassName='w-full'
+                                            className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                                            dateFormat="dd/MM/yyyy"
                                         />
-                                    )}
-                                </React.Fragment>
-                            ))}
+                                    </div>
+                                    <div className='flex-grow'>
+                                        <DatePicker
+                                            selected={null}
+                                            onChange={(date) => {}}
+                                            placeholderText='To date'
+                                            wrapperClassName='w-full'
+                                            className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                                            dateFormat="dd/MM/yyyy"
+                                        />
+                                    </div>
                                 </div>
-                        <div className="flex justify-between mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            <span>Client</span>
-                            <span>Loan Details</span>
-                            <span>Security</span>
-                            <span>Review</span>
+                                <select className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2'>
+                                    <option value="">Select Early Settlement</option>
+                                    <option value="yes">Loans with Early Settlement</option>
+                                    <option value="no">Loans with No Early Settlement</option>
+                                </select>
+                            </div>
+                            
+                            <div className='flex gap-2'>
+                                <div>
+                                    <input type="radio" name="status" id="released" /> 
+                                    <label htmlFor="released" className='text-sm font-semibold ml-1'>Released</label>
+                                </div>
+                                <div>
+                                    <input type="radio" name="status" id="pending" /> 
+                                    <label htmlFor="pending" className='text-sm font-semibold ml-1'>Pending</label>
+                                </div>
+                            </div>
+                            
+                            <div className='flex flex-col gap-2'>
+                                <label className='text-sm font-semibold'>Bank Accounts:</label>
+                                <input 
+                                    type="text" 
+                                    className='flex-1 focus:outline-none border border-slate-300 rounded-sm px-2 py-2' 
+                                    placeholder='Bank Account Number' 
+                                />
+                            </div>
+                            
+                            <div className='flex justify-between'>
+                                <button 
+                                    type="button"
+                                    className='bg-purple-500 hover:bg-purple-700 text-white font-bold py-1 px-2 text-sm cursor-pointer transition-colors duration-200'
+                                >
+                                    Search!
+                                </button>
+                                <button 
+                                    type="button"
+                                    className='bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-1 px-2 text-sm cursor-pointer transition-colors duration-200'
+                                >
+                                    Reset!
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
-                    {/* Step Content */}
-                    <div className="min-h-[400px]">
-                    {/* Step 1: Client Selection */}
-                        {step === 1 && (
-                            <div className="space-y-6">
-                                <div className="col-span-2">
-                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                                        <User className="h-5 w-5 mr-2 text-primary" />
-                                        Select Client
-                                    </h2>
-                                </div>
+                {/* Main Form */}
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Client Selection Section */}
+                    <div className="bg-white px-4 py-4 border-t-2 border-green-500">
+                        <div className="flex items-center mb-4">
+                            <User className="h-5 w-5 text-gray-600 mr-2" />
+                            <h2 className="text-lg font-semibold text-gray-900">Client Selection</h2>
+                        </div>
 
-                                <div className="flex justify-between items-center mb-4">
-                                    <h4 className="text-lg font-medium text-gray-900 dark:text-white">Existing Clients</h4>
+                        {/* Client Search */}
+                        <div className="mb-4">
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="Search clients by name, email, or phone..."
+                                        value={searchTerm}
+                                        onChange={handleClientSearch}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewClientForm(!showNewClientForm)}
+                                    className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors duration-200 text-sm flex items-center gap-1"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    New Client
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Selected Client Display */}
+                        {selectedClient && (
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="font-semibold text-blue-900">
+                                            {selectedClient.first_name} {selectedClient.last_name}
+                                        </h3>
+                                        <p className="text-sm text-blue-700">
+                                            {selectedClient.email} • {selectedClient.mobile}
+                                        </p>
+                                    </div>
                                     <button
                                         type="button"
-                                        onClick={() => setShowNewClientForm(true)}
-                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                                        onClick={() => setSelectedClient(null)}
+                                        className="text-blue-600 hover:text-blue-800"
                                     >
-                                        <Plus className="w-4 h-4" />
-                                        New Client
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Client List */}
+                        {!selectedClient && (
+                            <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md">
+                                {loading ? (
+                                    <div className="p-4 text-center text-gray-500">Loading clients...</div>
+                                ) : clients.length === 0 ? (
+                                    <div className="p-4 text-center text-gray-500">No clients found</div>
+                                ) : (
+                                    <div className="divide-y divide-gray-200">
+                                        {clients.map((client) => (
+                                            <div
+                                                key={client.id}
+                                                onClick={() => selectClient(client)}
+                                                className="p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h4 className="font-medium text-gray-900">
+                                                            {client.first_name} {client.last_name}
+                                                        </h4>
+                                                        <p className="text-sm text-gray-600">
+                                                            {client.email} • {client.mobile}
+                                                        </p>
+                                                    </div>
+                                                    <span className={`px-2 py-1 text-xs rounded-full ${
+                                                        client.status === 'active' 
+                                                            ? 'bg-green-100 text-green-800' 
+                                                            : 'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                        {client.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* New Client Form */}
+                        {showNewClientForm && (
+                            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="font-semibold text-gray-900">Add New Client</h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewClientForm(false)}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <X className="h-4 w-4" />
                                     </button>
                                 </div>
 
-                                {!showNewClientForm ? (
-                                    <>
-                                <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                                {errors.newClient && (
+                                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-800 text-sm">
+                                        {errors.newClient}
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <input
                                         type="text"
-                                                value={searchTerm}
-                                                onChange={handleClientSearch}
-                                                placeholder="Search clients by name, email, or phone..."
-                                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                            />
-                            </div>
-
-                                        <div className="max-h-80 overflow-y-auto border rounded-lg border-gray-200 dark:border-gray-700">
-                                            {loading ? (
-                                                <div className="p-8 text-center">
-                                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                                                    <p className="mt-2 text-gray-500 dark:text-gray-400">Loading clients...</p>
-                                                </div>
-                                            ) : clients.length === 0 ? (
-                                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                                                    <User className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                                                    <p>No clients found</p>
-                                                    <p className="text-sm">Try adjusting your search or create a new client</p>
-                                                </div>
-                                            ) : (
-                                                clients.map((client) => (
-                                    <div
-                                        key={client.id}
-                                        onClick={() => selectClient(client)}
-                                                        className={`p-4 border-b cursor-pointer transition-colors border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${selectedClient?.id === client.id ? 'bg-primary/5 dark:bg-primary/10 border-primary' : ''
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                                <h5 className="font-medium text-gray-900 dark:text-white">
-                                                    {client.first_name} {client.last_name}
-                                                                </h5>
-                                                                <p className="text-sm text-gray-600 dark:text-gray-400">{client.email}</p>
-                                                                <p className="text-sm text-gray-600 dark:text-gray-400">{client.phone_number || client.mobile}</p>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                                    {client.occupation}
-                                                                </p>
-                                                                {client.monthly_income && (
-                                                                    <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                                                                        ${parseFloat(client.monthly_income).toLocaleString()}/month
-                                                                    </p>
-                                                                )}
-                                            </div>
-                                            </div>
-                                        </div>
-                                                ))
-                                            )}
-                                    </div>
-                                    </>
-                                ) : (
-                                    /* New Client Form */
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <h5 className="font-medium text-gray-900 dark:text-white">Add New Client</h5>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowNewClientForm(false)}
-                                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
-                                            >
-                                                <X className="w-5 h-5 inline mr-1" /> Cancel
-                                            </button>
-                            </div>
-                                        {errors.newClient && (
-                                            <p className="text-red-500 text-sm mt-1">{errors.newClient}</p>
-                                        )}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    First Name *
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="first_name"
-                                                    value={newClientData.first_name}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                    required
-                                                />
-                        </div>
-
-                        <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Last Name *
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="last_name"
-                                                    value={newClientData.last_name}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                    required
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Email *
-                                                </label>
-                                                <input
-                                                    type="email"
-                                                    name="email"
-                                                    value={newClientData.email}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                    required
-                                                />
-                                </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Phone Number *
-                                    </label>
-                                                <input
-                                                    type="tel"
-                                                    name="phone_number"
-                                                    value={newClientData.phone_number}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                    required
-                                                />
-                                </div>
-
-                                <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Date of Birth
-                                    </label>
-                                        <input
-                                                    type="date"
-                                                    name="date_of_birth"
-                                                    value={newClientData.date_of_birth}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                                </div>
-
-                                <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Gender
-                                    </label>
+                                        name="first_name"
+                                        placeholder="First Name *"
+                                        value={newClientData.first_name}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        required
+                                    />
+                                    <input
+                                        type="text"
+                                        name="last_name"
+                                        placeholder="Last Name *"
+                                        value={newClientData.last_name}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        required
+                                    />
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        placeholder="Email *"
+                                        value={newClientData.email}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        required
+                                    />
+                                    <input
+                                        type="tel"
+                                        name="phone_number"
+                                        placeholder="Phone Number *"
+                                        value={newClientData.phone_number}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        required
+                                    />
+                                    <input
+                                        type="text"
+                                        name="national_id"
+                                        placeholder="National ID"
+                                        value={newClientData.national_id}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
                                     <select
-                                                    name="gender"
-                                                    value={newClientData.gender}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                >
-                                                    <option value="">Select Gender</option>
-                                                    <option value="male">Male</option>
-                                                    <option value="female">Female</option>
+                                        name="gender"
+                                        value={newClientData.gender}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    >
+                                        <option value="">Select Gender</option>
+                                                                                <option value="male">Male</option>
+                                        <option value="female">Female</option>
                                         <option value="other">Other</option>
                                     </select>
-                                </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    National ID
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="national_id"
-                                                    value={newClientData.national_id}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Occupation
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="occupation"
-                                                    value={newClientData.occupation}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                                            </div>
-
-                                <div className="md:col-span-2">
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Address
-                                    </label>
+                                    <input
+                                        type="text"
+                                        name="occupation"
+                                        placeholder="Occupation"
+                                        value={newClientData.occupation}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                    <input
+                                        type="text"
+                                        name="employer"
+                                        placeholder="Employer"
+                                        value={newClientData.employer}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                    <input
+                                        type="number"
+                                        name="monthly_income"
+                                        placeholder="Monthly Income"
+                                        value={newClientData.monthly_income}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                    <DatePicker
+                                        selected={newClientData.date_of_birth ? new Date(newClientData.date_of_birth) : null}
+                                        onChange={(date) => setNewClientData(prev => ({
+                                            ...prev,
+                                            date_of_birth: date ? date.toISOString().split('T')[0] : ''
+                                        }))}
+                                        placeholderText="Date of Birth"
+                                        wrapperClassName="w-full"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        dateFormat="dd/MM/yyyy"
+                                        showYearDropdown
+                                        yearDropdownItemNumber={50}
+                                        scrollableYearDropdown
+                                    />
                                     <textarea
-                                                    name="address"
-                                                    value={newClientData.address}
-                                                    onChange={handleNewClientDataChange}
-                                                    rows="2"
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                                            </div>
+                                        name="address"
+                                        placeholder="Address"
+                                        value={newClientData.address}
+                                        onChange={handleNewClientDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        rows="2"
+                                    />
+                                </div>
 
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Employer
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="employer"
-                                                    value={newClientData.employer}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Monthly Income
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    name="monthly_income"
-                                                    value={newClientData.monthly_income}
-                                                    onChange={handleNewClientDataChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                    min="0"
-                                                    step="0.01"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex justify-end">
-                                            <button
-                                                type="button"
-                                                onClick={createNewClient}
-                                                disabled={loading}
-                                                className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                            >
-                                                {loading ? 'Creating...' : 'Create Client'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
+                                <div className="mt-4 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={createNewClient}
+                                        disabled={loading}
+                                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 transition-colors duration-200 text-sm"
+                                    >
+                                        {loading ? 'Creating...' : 'Create Client'}
+                                    </button>
+                                </div>
                             </div>
                         )}
-
-                        {/* Step 2: Loan Details */}
-                        {step === 2 && (
-                            <div className="space-y-6">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                                    <FileText className="h-5 w-5 mr-2 text-primary" />
-                                    Loan Details
-                                </h2>
-
-                                {selectedClient && (
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                        <h5 className="font-medium text-gray-900 dark:text-white">Selected Client:</h5>
-                                        <p className="text-gray-600 dark:text-gray-400">
-                                            {selectedClient.first_name} {selectedClient.last_name} - {selectedClient.email}
-                                        </p>
-                                    </div>
-                                )}
-                                {errors.loan_type_id && <p className="text-red-500 text-sm mt-1">{errors.loan_type_id}</p>}
-                                {errors.loan_amount && <p className="text-red-500 text-sm mt-1">{errors.loan_amount}</p>}
-                                {errors.loan_term && <p className="text-red-500 text-sm mt-1">{errors.loan_term}</p>}
-                                {errors.loan_purpose && <p className="text-red-500 text-sm mt-1">{errors.loan_purpose}</p>}
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Loan Type *
-                                        </label>
-                                        <select
-                                            name="loan_type_id"
-                                            value={loanData.loan_type_id}
-                                            onChange={handleLoanTypeChange}
-                                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                            required
-                                        >
-                                            <option value="">Select Loan Type</option>
-                                            {loanTypes.map((type) => (
-                                                <option key={type.id} value={type.id}>
-                                                    {type.name} - {type.description}
-                                                </option>
-                                            ))}
-                                        </select>
-                                </div>
-
-                                    {loanData.loan_type_id && selectedLoanType && (
-                                        <div className="md:col-span-2 bg-primary/5 dark:bg-primary/10 p-4 rounded-lg">
-                                            <h5 className="font-medium text-primary-dark dark:text-primary-light mb-2">Loan Type Details:</h5>
-                                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                                <div>
-                                                    <span className="text-primary-dark dark:text-primary-light">Interest Rate:</span>
-                                                    <span className="ml-2 font-medium">
-                                                        {selectedLoanType.nominal_interest_rate}%
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-primary-dark dark:text-primary-light">Term Range:</span>
-                                                    <span className="ml-2">
-                                                        {selectedLoanType.min_term_months} -
-                                                        {selectedLoanType.max_term_months} months
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-primary-dark dark:text-primary-light">Amount Range:</span>
-                                                    <span className="ml-2">
-                                                        ${selectedLoanType.min_amount?.toLocaleString()} -
-                                                        ${selectedLoanType.max_amount?.toLocaleString()}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-primary-dark dark:text-primary-light">Collateral Required:</span>
-                                                    <span className="ml-2">
-                                                        {selectedLoanType.requires_collateral ? 'Yes' : 'No'}
-                                                    </span>
-                                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                        <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Loan Amount *
-                                        </label>
-                                        <div className="relative">
-                                            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                                            <input
-                                                type="number"
-                                                name="loan_amount"
-                                                value={loanData.loan_amount}
-                                                onChange={handleLoanDataChange}
-                                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                min={selectedLoanType?.min_amount || 0}
-                                                max={selectedLoanType?.max_amount || undefined}
-                                                step="0.01"
-                                                required
-                                            />
-                                        </div>
-                                        {selectedLoanType && (
-                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                Range: ${selectedLoanType.min_amount?.toLocaleString()} - ${selectedLoanType.max_amount?.toLocaleString()}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Loan Term (Months) *
-                                    </label>
-                                    <div className="relative">
-                                            <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                                        <input
-                                            type="number"
-                                                name="loan_term"
-                                                value={loanData.loan_term}
-                                                onChange={handleLoanDataChange}
-                                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                min={selectedLoanType?.min_term_months || 1}
-                                                max={selectedLoanType?.max_term_months || undefined}
-                                                required
-                                        />
-                                    </div>
-                                    {selectedLoanType && (
-                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            Range: {selectedLoanType.min_term_months} - {selectedLoanType.max_term_months} months
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Interest Rate (%) *
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="interest_rate"
-                                            value={loanData.interest_rate}
-                                            onChange={handleLoanDataChange}
-                                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white bg-gray-100 dark:bg-gray-600"
-                                            readOnly
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Repayment Frequency
-                                    </label>
-                                    <select
-                                            name="repayment_frequency"
-                                            value={loanData.repayment_frequency}
-                                            onChange={handleLoanDataChange}
-                                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                        >
-                                            <option value="daily">Daily</option>
-                                                    <option value="weekly">Weekly</option>
-                                            <option value="bi_weekly">Bi-Weekly</option>
-                                            <option value="monthly">Monthly</option>
-                                                    <option value="quarterly">Quarterly</option>
-                                            <option value="lump_sum">Lump Sum</option>
-                                    </select>
-                                </div>
-
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Loan Purpose *
-                                        </label>
-                                        <textarea
-                                            name="loan_purpose"
-                                            value={loanData.loan_purpose}
-                                            onChange={handleLoanDataChange}
-                                            rows="3"
-                                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                            required
-                                        />
-                            </div>
-
-                                    {/* Loan Calculation Preview */}
-                                    {loanCalculation && (
-                                        <div className="md:col-span-2 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-                                            <h5 className="font-medium text-green-900 dark:text-green-200 mb-2">Loan Calculation Preview:</h5>
-                                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div>
-                                                    <span className="text-green-600 dark:text-green-400">Monthly Payment:</span>
-                                                    <span className="ml-2 font-medium">
-                                                        ${loanCalculation.loan_details.installment_amount.toLocaleString()}
-                                                    </span>
-                                        </div>
-                                        <div>
-                                                    <span className="text-green-600 dark:text-green-400">Total Interest:</span>
-                                                    <span className="ml-2">
-                                                        ${loanCalculation.loan_details.total_interest.toLocaleString()}
-                                                    </span>
-                                        </div>
-                                        <div>
-                                                    <span className="text-green-600 dark:text-green-400">Total Repayment:</span>
-                                                    <span className="ml-2 font-medium">
-                                                        ${loanCalculation.loan_details.total_repayment.toLocaleString()}
-                                                    </span>
-                                        </div>
-                                        <div>
-                                                    <span className="text-green-600 dark:text-green-400">Maturity Date:</span>
-                                                    <span className="ml-2">
-                                                        {new Date(loanCalculation.loan_details.maturity_date).toLocaleDateString()}
-                                                    </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                                </div>
-                        </div>
-                    )}
-
-                        {/* Step 3: Security & Collateral */}
-                        {step === 3 && (
-                            <div className="space-y-6">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                                    <Shield className="h-5 w-5 mr-2 text-primary" />
-                                    Security & Collateral
-                                </h2>
-
-                                {errors.collateral_type && <p className="text-red-500 text-sm mt-1">{errors.collateral_type}</p>}
-                                {errors.collateral_description && <p className="text-red-500 text-sm mt-1">{errors.collateral_description}</p>}
-                                {errors.collateral_value && <p className="text-red-500 text-sm mt-1">{errors.collateral_value}</p>}
-                                {errors.guarantor_name && <p className="text-red-500 text-sm mt-1">{errors.guarantor_name}</p>}
-                                {errors.guarantor_phone && <p className="text-red-500 text-sm mt-1">{errors.guarantor_phone}</p>}
-
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            Security Type *
-                                    </label>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                        {[
-                                                { value: 'none', label: 'No Security', icon: <Shield className="w-6 h-6 mx-auto mb-2 text-gray-400 dark:text-gray-500" /> },
-                                                { value: 'property', label: 'Property', icon: <img src="/icons/property-icon.svg" alt="Property Icon" className="w-6 h-6 mx-auto mb-2" /> }, // Placeholder icon
-                                                { value: 'vehicle', label: 'Vehicle', icon: <img src="/icons/vehicle-icon.svg" alt="Vehicle Icon" className="w-6 h-6 mx-auto mb-2" /> }, // Placeholder icon
-                                                { value: 'guarantor', label: 'Guarantor', icon: <User className="w-6 h-6 mx-auto mb-2 text-gray-400 dark:text-gray-500" /> }
-                                        ].map((option) => (
-                                            <label
-                                                key={option.value}
-                                                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${loanData.collateral_type === option.value
-                                                        ? 'border-primary bg-primary/5 dark:bg-primary/10'
-                                                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                                                    }`}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                        name="collateral_type"
-                                                    value={option.value}
-                                                        checked={loanData.collateral_type === option.value}
-                                                        onChange={handleLoanDataChange}
-                                                    className="sr-only"
-                                                />
-                                                <div className="text-center w-full">
-                                                        {option.icon}
-                                                        <p className="text-sm font-medium text-gray-900 dark:text-white">{option.label}</p>
-                                                </div>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                    {loanData.collateral_type !== 'none' && (
-                                    <>
-                                        <div className="md:col-span-2">
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                Collateral Description *
-                                            </label>
-                                            <textarea
-                                                    name="collateral_description"
-                                                    value={loanData.collateral_description}
-                                                    onChange={handleLoanDataChange}
-                                                    rows="3"
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                    required
-                                                />
-                                        </div>
-
-                                        <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                Collateral Value *
-                                            </label>
-                                            <div className="relative">
-                                                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                                                <input
-                                                    type="number"
-                                                        name="collateral_value"
-                                                        value={loanData.collateral_value}
-                                                        onChange={handleLoanDataChange}
-                                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                        min="0"
-                                                        step="0.01"
-                                                        required
-                                                />
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                                {loanData.collateral_type === 'guarantor' && (
-                                    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                                        <h5 className="font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                                            <Info className="w-5 h-5 text-gray-400" />
-                                            Guarantor Information
-                                        </h5>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Guarantor Name
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="guarantor_name"
-                                                    value={loanData.guarantor_name}
-                                                    onChange={handleLoanDataChange}
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                        </div>
-
-                        <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Guarantor Phone
-                                                </label>
-                                                <input
-                                                    type="tel"
-                                                    name="guarantor_phone"
-                                                    value={loanData.guarantor_phone}
-                                                    onChange={handleLoanDataChange}
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                                            </div>
-
-                                            <div className="md:col-span-2">
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Guarantor Address
-                                                </label>
-                                                <textarea
-                                                    name="guarantor_address"
-                                                    value={loanData.guarantor_address}
-                                                    onChange={handleLoanDataChange}
-                                                    rows="2"
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Step 4: Review & Submit */}
-                        {step === 4 && (
-                            <div className="space-y-6">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                                    <CheckCircle className="h-5 w-5 mr-2 text-primary" />
-                                    Review & Submit
-                                </h2>
-
-                                <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg space-y-4">
-                                {/* Client Information */}
-                                    <div>
-                                        <h5 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                                            <User className="w-5 h-5 text-primary" />
-                                            Client Information
-                                        </h5>
-                                    <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Name:</span>
-                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                                                    {selectedClient?.first_name} {selectedClient?.last_name}
-                                                </span>
-                                        </div>
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Email:</span>
-                                                <span className="ml-2 text-gray-900 dark:text-white">{selectedClient?.email}</span>
-                                        </div>
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Phone:</span>
-                                                <span className="ml-2 text-gray-900 dark:text-white">{selectedClient?.phone_number || selectedClient?.mobile}</span>
-                                        </div>
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Occupation:</span>
-                                                <span className="ml-2 text-gray-900 dark:text-white">{selectedClient?.occupation || 'N/A'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                    <hr className="border-gray-200 dark:border-gray-600" />
-
-                                {/* Loan Details */}
-                                        <div>
-                                        <h5 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                                            <FileText className="w-5 h-5 text-primary" />
-                                            Loan Details
-                                        </h5>
-                                        <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Loan Type:</span>
-                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">{selectedLoanType?.name}</span>
-                                        </div>
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Amount:</span>
-                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                                                    ${parseFloat(loanData.loan_amount || 0).toLocaleString()}
-                                                </span>
-                                        </div>
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Term:</span>
-                                                <span className="ml-2 text-gray-900 dark:text-white">{loanData.loan_term} months</span>
-                                        </div>
-                                        <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Interest Rate:</span>
-                                                <span className="ml-2 text-gray-900 dark:text-white">{loanData.interest_rate}%</span>
-                                        </div>
-                                            <div className="col-span-2">
-                                                <span className="text-gray-600 dark:text-gray-400">Purpose:</span>
-                                                <span className="ml-2 text-gray-900 dark:text-white">{loanData.loan_purpose}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Payment Details */}
-                                    {loanCalculation && (
-                                        <>
-                                            <hr className="border-gray-200 dark:border-gray-600" />
-                                            <div>
-                                                <h5 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                                                    <DollarSign className="w-5 h-5 text-primary" />
-                                                    Payment Details
-                                                </h5>
-                                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                                    <div>
-                                                        <span className="text-gray-600 dark:text-gray-400">Monthly Payment:</span>
-                                                        <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                                                            ${loanCalculation.loan_details.installment_amount?.toLocaleString()}
-                                                        </span>
-                                            </div>
-                                            <div>
-                                                        <span className="text-gray-600 dark:text-gray-400">Total Interest:</span>
-                                                        <span className="ml-2 text-gray-900 dark:text-white">
-                                                            ${loanCalculation.loan_details.total_interest?.toLocaleString()}
-                                                        </span>
-                                            </div>
-                                            <div>
-                                                        <span className="text-gray-600 dark:text-gray-400">Total Repayment:</span>
-                                                        <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                                                            ${loanCalculation.loan_details.total_repayment?.toLocaleString()}
-                                                        </span>
-                                            </div>
-                                            <div>
-                                                        <span className="text-gray-600 dark:text-gray-400">Maturity Date:</span>
-                                                        <span className="ml-2 text-gray-900 dark:text-white">
-                                                            {new Date(loanCalculation.loan_details.maturity_date).toLocaleDateString()}
-                                                        </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                        </>
-                                )}
-
-                                {/* Security Information */}
-                                    {loanData.collateral_type !== 'none' && (
-                                        <>
-                                            <hr className="border-gray-200 dark:border-gray-600" />
-                                        <div>
-                                                <h5 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                                                    <Shield className="w-5 h-5 text-primary" />
-                                                    Security Information
-                                                </h5>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                                                    <div>
-                                                        <span className="text-gray-600 dark:text-gray-400">Security Type:</span>
-                                                        <span className="ml-2 font-medium text-gray-900 dark:text-white capitalize">{loanData.collateral_type.replace('_', ' ')}</span>
-                                        </div>
-                                                    <div>
-                                                        <span className="text-gray-600 dark:text-gray-400">Collateral Value:</span>
-                                                        <span className="ml-2 font-medium text-gray-900 dark:text-white">${loanData.collateral_value?.toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="md:col-span-2">
-                                                        <span className="text-gray-600 dark:text-gray-400">Collateral Description:</span>
-                                                        <span className="ml-2 font-medium text-gray-900 dark:text-white">{loanData.collateral_description}</span>
-                                                    </div>
-                                                    {loanData.collateral_type === 'guarantor' && (
-                                            <>
-                                                <div>
-                                                                <span className="text-gray-600 dark:text-gray-400">Guarantor Name:</span>
-                                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">{loanData.guarantor_name}</span>
-                                                </div>
-                                                            <div>
-                                                                <span className="text-gray-600 dark:text-gray-400">Guarantor Phone:</span>
-                                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">{loanData.guarantor_phone}</span>
-                                                            </div>
-                                                            <div className="md:col-span-2">
-                                                                <span className="text-gray-600 dark:text-gray-400">Guarantor Address:</span>
-                                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">{loanData.guarantor_address}</span>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                                        </>
-                                    )}
-
-                                    {loanData.notes && (
-                                        <>
-                                            <hr className="border-gray-200 dark:border-gray-600" />
-                                        <div>
-                                                <h5 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                                                    <Info className="w-5 h-5 text-primary" />
-                                                    Additional Notes
-                                                </h5>
-                                                <p className="text-gray-900 dark:text-white text-sm">{loanData.notes}</p>
-                                        </div>
-                                        </>
-                                )}
-                            </div>
-                        </div>
-                    )}
                     </div>
 
-                    {/* Form Navigation */}
-                    <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <div>
-                            {step > 1 && (
-                        <button
-                                    type="button"
-                            onClick={handlePrevious}
-                                    className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                                    <ArrowLeft className="inline-block w-4 h-4 mr-2" /> Previous
-                        </button>
+                    {/* Loan Details Section */}
+                    <div className="bg-white px-4 py-4 border-t-2 border-green-500">
+                        <div className="flex items-center mb-4">
+                            <DollarSign className="h-5 w-5 text-gray-600 mr-2" />
+                            <h2 className="text-lg font-semibold text-gray-900">Loan Details</h2>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Loan Type */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Loan Type *
+                                </label>
+                                <select
+                                    name="loan_type_id"
+                                    value={loanData.loan_type_id}
+                                    onChange={handleLoanTypeChange}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    required
+                                >
+                                    <option value="">Select Loan Type</option>
+                                    {loanTypes.map((type) => (
+                                        <option key={type.id} value={type.id}>
+                                            {type.name} ({type.code})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Loan Amount */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Loan Amount *
+                                    {selectedLoanType && (
+                                        <span className="text-xs text-gray-500 ml-1">
+                                            (Min: {selectedLoanType.min_amount?.toLocaleString()} - Max: {selectedLoanType.max_amount?.toLocaleString()})
+                                        </span>
+                                    )}
+                                </label>
+                                <input
+                                    type="number"
+                                    name="loan_amount"
+                                    value={loanData.loan_amount}
+                                    onChange={handleLoanDataChange}
+                                    min={selectedLoanType?.min_amount || 0}
+                                    max={selectedLoanType?.max_amount || 1000000}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    placeholder="Enter loan amount"
+                                    required
+                                />
+                            </div>
+
+                            {/* Loan Term */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Loan Term (Months) *
+                                    {selectedLoanType && (
+                                        <span className="text-xs text-gray-500 ml-1">
+                                            (Min: {selectedLoanType.min_term_months} - Max: {selectedLoanType.max_term_months})
+                                        </span>
+                                    )}
+                                </label>
+                                <input
+                                    type="number"
+                                    name="loan_term"
+                                    value={loanData.loan_term}
+                                    onChange={handleLoanDataChange}
+                                    min={selectedLoanType?.min_term_months || 1}
+                                    max={selectedLoanType?.max_term_months || 60}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    placeholder="Enter loan term in months"
+                                    required
+                                />
+                            </div>
+
+                            {/* Interest Rate */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Interest Rate (%) *
+                                </label>
+                                <input
+                                    type="number"
+                                    name="interest_rate"
+                                    value={loanData.interest_rate}
+                                    onChange={handleLoanDataChange}
+                                    step="0.01"
+                                    min="0"
+                                    max="100"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    placeholder="Enter interest rate"
+                                    required
+                                />
+                            </div>
+
+                            {/* Repayment Frequency */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Repayment Frequency *
+                                </label>
+                                <select
+                                    name="repayment_frequency"
+                                    value={loanData.repayment_frequency}
+                                    onChange={handleLoanDataChange}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    required
+                                >
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="bi_weekly">Bi-Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="quarterly">Quarterly</option>
+                                </select>
+                            </div>
+
+                            {/* Loan Purpose */}
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Loan Purpose *
+                                </label>
+                                <textarea
+                                    name="loan_purpose"
+                                    value={loanData.loan_purpose}
+                                    onChange={handleLoanDataChange}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    rows="3"
+                                    placeholder="Describe the purpose of this loan"
+                                    required
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Collateral Section */}
+                    <div className="bg-white px-4 py-4 border-t-2 border-green-500">
+                        <div className="flex items-center mb-4">
+                            <Shield className="h-5 w-5 text-gray-600 mr-2" />
+                            <h2 className="text-lg font-semibold text-gray-900">Collateral & Security</h2>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Collateral Type */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Collateral Type
+                                </label>
+                                <select
+                                    name="collateral_type"
+                                    value={loanData.collateral_type}
+                                    onChange={handleLoanDataChange}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                >
+                                    <option value="none">No Collateral</option>
+                                    <option value="immovable_assets">Immovable Assets</option>
+                                    <option value="movable_assets">Movable Assets</option>
+                                    <option value="guarantor">Guarantor</option>
+                                </select>
+                            </div>
+
+                            {/* Collateral Value */}
+                            {loanData.collateral_type !== 'none' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Collateral Value
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="collateral_value"
+                                        value={loanData.collateral_value}
+                                        onChange={handleLoanDataChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        placeholder="Enter collateral value"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Collateral Description */}
+                            {loanData.collateral_type !== 'none' && (
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Collateral Description
+                                    </label>
+                                    <textarea
+                                        name="collateral_description"
+                                        value={loanData.collateral_description}
+                                        onChange={handleLoanDataChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        rows="3"
+                                        placeholder="Describe the collateral in detail"
+                                    />
+                                </div>
                             )}
                         </div>
 
-                        <div className="flex gap-3">
-                                <button
+                        {/* Guarantor Information */}
+                        {loanData.collateral_type === 'guarantor' && (
+                            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+                                <h3 className="font-semibold text-gray-900 mb-3">Guarantor Information</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <input
+                                        type="text"
+                                        name="guarantor_name"
+                                        value={loanData.guarantor_name}
+                                        onChange={handleLoanDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        placeholder="Guarantor Name"
+                                    />
+                                    <input
+                                        type="tel"
+                                        name="guarantor_phone"
+                                        value={loanData.guarantor_phone}
+                                        onChange={handleLoanDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        placeholder="Guarantor Phone"
+                                    />
+                                    <input
+                                        type="text"
+                                        name="guarantor_address"
+                                        value={loanData.guarantor_address}
+                                        onChange={handleLoanDataChange}
+                                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                        placeholder="Guarantor Address"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Loan Calculation Preview */}
+                    {loanCalculation && (
+                        <div className="bg-white px-4 py-4 border-t-2 border-green-500">
+                            <div className="flex items-center mb-4">
+                                <Calendar className="h-5 w-5 text-gray-600 mr-2" />
+                                <h2 className="text-lg font-semibold text-gray-900">Loan Calculation Preview</h2>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                                                <div className="bg-blue-50 p-3 rounded-md">
+                                    <div className="text-sm text-blue-600 font-medium">Monthly Payment</div>
+                                    <div className="text-lg font-bold text-blue-900">
+                                        {loanCalculation.installment_amount?.toLocaleString()} RWF
+                                    </div>
+                                </div>
+                                <div className="bg-green-50 p-3 rounded-md">
+                                    <div className="text-sm text-green-600 font-medium">Total Interest</div>
+                                    <div className="text-lg font-bold text-green-900">
+                                        {loanCalculation.total_interest?.toLocaleString()} RWF
+                                    </div>
+                                </div>
+                                <div className="bg-yellow-50 p-3 rounded-md">
+                                    <div className="text-sm text-yellow-600 font-medium">Total Amount</div>
+                                    <div className="text-lg font-bold text-yellow-900">
+                                        {loanCalculation.total_amount?.toLocaleString()} RWF
+                                    </div>
+                                </div>
+                                <div className="bg-purple-50 p-3 rounded-md">
+                                    <div className="text-sm text-purple-600 font-medium">Maturity Date</div>
+                                    <div className="text-lg font-bold text-purple-900">
+                                        {loanCalculation.maturity_date ? new Date(loanCalculation.maturity_date).toLocaleDateString() : 'N/A'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Payment Schedule Preview */}
+                            {loanCalculation.schedule && loanCalculation.schedule.length > 0 && (
+                                <div className="mt-4">
+                                    <h3 className="font-semibold text-gray-900 mb-2">Payment Schedule (First 5 Payments)</h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full border border-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border-b">
+                                                        Payment #
+                                                    </th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border-b">
+                                                        Due Date
+                                                    </th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border-b">
+                                                        Principal
+                                                    </th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border-b">
+                                                        Interest
+                                                    </th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border-b">
+                                                        Total Payment
+                                                    </th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border-b">
+                                                        Balance
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {loanCalculation.schedule.slice(0, 5).map((payment, index) => (
+                                                    <tr key={index}>
+                                                        <td className="px-3 py-2 text-sm text-gray-900 border-b">
+                                                            {payment.installment_number}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-sm text-gray-900 border-b">
+                                                            {new Date(payment.due_date).toLocaleDateString()}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-sm text-gray-900 border-b">
+                                                            {payment.principal_due?.toLocaleString()} RWF
+                                                        </td>
+                                                        <td className="px-3 py-2 text-sm text-gray-900 border-b">
+                                                            {payment.interest_due?.toLocaleString()} RWF
+                                                        </td>
+                                                        <td className="px-3 py-2 text-sm text-gray-900 border-b">
+                                                            {payment.total_due?.toLocaleString()} RWF
+                                                        </td>
+                                                        <td className="px-3 py-2 text-sm text-gray-900 border-b">
+                                                            {payment.balance_after?.toLocaleString()} RWF
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {loanCalculation.schedule.length > 5 && (
+                                        <p className="text-sm text-gray-500 mt-2">
+                                            Showing first 5 of {loanCalculation.schedule.length} payments
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Additional Notes Section */}
+                    <div className="bg-white px-4 py-4 border-t-2 border-green-500">
+                        <div className="flex items-center mb-4">
+                            <FileText className="h-5 w-5 text-gray-600 mr-2" />
+                            <h2 className="text-lg font-semibold text-gray-900">Additional Information</h2>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Notes
+                            </label>
+                            <textarea
+                                name="notes"
+                                value={loanData.notes}
+                                onChange={handleLoanDataChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                rows="4"
+                                placeholder="Add any additional notes or comments about this loan application"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="bg-white px-4 py-4 border-t-2 border-green-500">
+                        <div className="flex justify-between items-center">
+                            <button
                                 type="button"
-                                onClick={() => navigate('/loans')} // Direct navigate to cancel
-                                className="px-6 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                                onClick={() => navigate('/dashboard/admin/loans')}
+                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors duration-200 text-sm"
                             >
                                 Cancel
                             </button>
-
-                            {step < 4 ? ( // Next button for steps 1, 2, 3
+                            
+                            <div className="flex gap-2">
                                 <button
                                     type="button"
-                                    onClick={handleNext}
-                                    disabled={loading}
-                                    className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                                    onClick={() => {
+                                        // Save as draft functionality
+                                        console.log('Save as draft');
+                                    }}
+                                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors duration-200 text-sm flex items-center gap-1"
                                 >
-                                    {loading && step === 2 ? ( // Only show loading spinner on step 2 for calculation
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            Calculating...
-                                        </>
-                                    ) : (
-                                        <>
-                                            Next <ArrowRight className="inline-block w-4 h-4 ml-2" />
-                                        </>
-                                    )}
+                                    <FileText className="h-4 w-4" />
+                                    Save as Draft
                                 </button>
-                            ) : ( // Submit button for step 4
+                                
                                 <button
                                     type="submit"
-                                    disabled={loading}
-                                    className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                                    disabled={loading || !selectedClient}
+                                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 text-sm flex items-center gap-1"
                                 >
-                                    {loading ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            Submitting...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Save className="inline-block w-4 h-4 mr-2" /> Submit Application
-                                        </>
-                                    )}
+                                    <Save className="h-4 w-4" />
+                                    {loading ? 'Creating...' : 'Create Loan Application'}
                                 </button>
-                            )}
+                            </div>
                         </div>
                     </div>
                 </form>
+
+                {/* Export and Column Controls */}
+                <div className='flex justify-between items-center'>
+                    <button className="text-xs px-2 py-1 border border-slate-300 bg-gray-100 text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors duration-200">
+                        Export Data
+                    </button>
+                    <button className="text-xs px-2 py-1 border border-slate-300 bg-gray-100 text-gray-700 cursor-pointer hover:bg-gray-200 transition-colors duration-200">
+                        Show/Hide Columns
+                    </button>
+                </div>
+
+                {/* Summary Section */}
+                <div className='bg-gray-50 border-t-2 border-green-500'>
+                    <div className="flex justify-between items-center p-4">
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="text"
+                                placeholder="Search applications"
+                                className="px-2 py-1 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs w-48"
+                            />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <label className="text-xs text-gray-700">Show</label>
+                            <select className="px-2 py-1 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs">
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                            <label className="text-sm text-gray-700">entries</label>
+                        </div>
+                    </div>
+
+                    {/* Data Table Placeholder */}
+                    <div className="overflow-x-auto px-4 py-2">
+                        <table className="min-w-full">
+                            <thead>
+                                <tr className="border-b">
+                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 w-12">View</th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 w-32">Client Name</th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 w-24">Loan Type</th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 w-24">Amount</th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 w-24">Term</th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 w-24">Status</th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 w-32">Created Date</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white">
+                                <tr>
+                                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 text-sm">
+                                        <div className="flex flex-col items-center">
+                                            <FileText className="h-12 w-12 text-gray-300 mb-2" />
+                                            <p>No loan applications found.</p>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                Create your first loan application using the form above.
+                                            </p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination */}
+                    <div className="flex justify-between items-center px-4 py-1 bg-white pb-2">
+                        <div className="text-xs text-gray-700">
+                            Showing 0 to 0 of 0 entries
+                        </div>
+                        <div className="flex space-x-2">
+                            <button className="px-2 py-1 border border-gray-300 text-xs text-gray-500 bg-gray-50 cursor-not-allowed">
+                                Previous
+                            </button>
+                            <button className="px-2 py-1 border border-gray-300 text-xs text-gray-500 bg-gray-50 cursor-not-allowed">
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -13,7 +13,7 @@ const {
   uploadClientData, 
   uploadClientFiles, 
   handleUploadError 
-} = require('../middleware/upload');
+} = require('../middleware/uploads');
 
 // Import controller functions
 const {
@@ -21,9 +21,9 @@ const {
   getClients,
   getClient,
   updateClient,
+  assignOfficer,
   deleteClient,
   approveClient,
-  uploadClientFiles: uploadFiles,
   getClientFiles,
   deleteClientFile,
   getClientStats,
@@ -90,9 +90,9 @@ router.delete('/:id',
 );
 
 // Approve client (admin and supervisor only)
-router.patch('/:id/approve', 
+router.patch('/:id/assign', 
   authorizeRoles(['admin', 'supervisor']),
-  approveClient
+  assignOfficer
 );
 
 // Upload additional files for client
@@ -101,7 +101,7 @@ router.post('/:id/files',
   uploadClientFiles,
   handleUploadError,
   validateFileUpload,
-  uploadFiles
+  uploadClientFiles
 );
 
 // Get client files
@@ -116,6 +116,11 @@ router.delete('/:id/files/:fileId',
   deleteClientFile
 );
 
+// Assign loan officer to client
+router.patch('/:id/assign-officer', 
+  authorizeRoles(['admin', 'supervisor', 'loan-officer']),
+  assignOfficer
+);
 
 router.get('/:id/loans', protect, getClientWithLoans);
 

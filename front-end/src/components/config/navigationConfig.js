@@ -103,7 +103,7 @@ const navigationConfig = [
         children: [
             {
                 title: 'All Borrowers',
-                path: '/dashboard/borrowers',
+                path: '/dashboard/admin/borrowers',
                 roles: ['admin', 'supervisor']
             },
             {
@@ -113,9 +113,9 @@ const navigationConfig = [
             },
             {
                 title: 'Add Borrower',
-                path: 'borrowers/add',
-                roles: ['admin', 'supervisor', 'loan-officer']
-            }
+                path: 'loan-officer/borrowers/add',
+                roles: ['loan-officer']
+            },
         ]
     },
     {
@@ -440,21 +440,23 @@ const navigationConfig = [
             },
             {
                 title: '1 Month Late Loans',
-                path: 'loans/one-month-late',
+                path: 'admin/one-month-late',
                 roles: ['admin', 'supervisor']
             },
             {
-                title: 'Loan Calculatorsdsd',
+                title: 'Loan Calculator',
                 // Use different paths for different roles
-                path: (role) => {
-                    if (role === 'admin') return 'admin/loan-calculator';
-                    return 'loan-officer/calculator';
-                },
+                path: 'admin/loan-calculator',
                 roles: ['admin', 'supervisor', 'loan-officer']
             },
             {
                 title: 'Guarantors',
-                path: 'loans/guarantors',
+                path: 'admin/guarantors',
+                roles: ['admin', 'supervisor', 'loan-officer']
+            },
+            {
+                title: 'Loan Comments',
+                path: 'admin/loan-comments',
                 roles: ['admin', 'supervisor', 'loan-officer']
             },
             {

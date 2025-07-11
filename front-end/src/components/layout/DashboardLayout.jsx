@@ -84,7 +84,7 @@ const DashboardLayout = () => {
                             onClick={() => toggleDropdown(item.id)}
                             className="group text-white relative flex items-center justify-between w-full gap-2.5 rounded-sm py-2 px-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4"
                         >
-                            <div className="flex items-center gap-2.5">
+                            <div className="flex items-center text-xs gap-2.5">
                                 <IconComponent className='w-5 h-5 text-white' />
                                 {item.title}
                                 {/* Add role-specific indicators */}
@@ -218,23 +218,8 @@ const DashboardLayout = () => {
                 <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
                     <Header onMenuToggle={toggleSidebar} />
                     <main>
-                        <div className="mx-auto max-w-screen-2xl p-2 md:p-6 2xl:p-2">
+                        <div className="mx-auto max-w-screen-2xl p-0 md:p-0 2xl:p-0">
                             {/* Role-specific welcome message */}
-                            <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-400 dark:bg-gray-800 dark:border-blue-500">
-                                <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-200">
-                                    {getRoleWelcomeMessage()}
-                                </h2>
-                                {user?.role === 'loan-officer' && (
-                                    <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
-                                        Access is limited to your assigned borrowers and loans only.
-                                    </p>
-                                )}
-                                {user?.role === 'cashier' && (
-                                    <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
-                                        You can view and process loan requests.
-                                    </p>
-                                )}
-                            </div>
                             <Outlet />
                         </div>
                     </main>

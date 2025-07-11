@@ -595,7 +595,7 @@ const getLoans = async (req, res) => {
     try {
         const {
             page = 1,
-            limit = 10,
+            limit = 20,
             status,
             client_id,
             loan_officer_id,
@@ -681,7 +681,7 @@ const getLoans = async (req, res) => {
                 l.application_date, l.approval_date, l.disbursement_date,
                 l.approved_by, l.disbursed_by, l.notes,
                 c.first_name AS client_first_name, c.last_name AS client_last_name, 
-                c.client_number, c.gender as client_gender, c.mobile as client_mobile,
+                c.client_number, c.gender as client_gender,c.date_of_birth, c.mobile as client_mobile,
                 c.email as client_email,
                 lt.name AS loan_type_name,
                 u1.first_name as officer_first_name, u1.last_name as officer_last_name,
@@ -741,7 +741,6 @@ const getLoans = async (req, res) => {
     }
 };
 
-
 const getLoan = async (req, res) => {
     try {
         const { id } = req.params;
@@ -749,6 +748,10 @@ const getLoan = async (req, res) => {
         const [loans] = await sequelize.query(`
             SELECT 
                 l.*,
+                (COALESCE(l.principal_balance, 0) + COALESCE(l.interest_balance, 0)) as total_due,
+                (COALESCE(l.approved_amount, l.applied_amount, 0) - COALESCE(l.loan_balance, 0)) as total_paid,
+                l.loan_balance as balance,
+                l.interest_balance,
                 c.first_name as client_first_name,
                 c.last_name as client_last_name,
                 c.client_number,
@@ -897,33 +900,107 @@ const updateLoanStatus = async (req, res) => {
 const getLoansByClient = async (req, res) => {
     try {
         const { clientId } = req.params;
+        const {
+            page = 1,
+            limit = 20,
+            status,
+            loan_officer_id,
+            branch,
+            loan_type,
+            performance_class,
+            search
+        } = req.query;
 
-        const [loans] = await sequelize.query(`
+        const offset = (page - 1) * limit;
+        let whereClause = ' WHERE l.client_id = ?';
+        let replacements = [clientId];
+        if (status) {
+            whereClause += ' AND l.status = ?';
+            replacements.push(status);
+        }
+        if (loan_officer_id) {
+            whereClause += ' AND l.loan_officer_id = ?';
+            replacements.push(loan_officer_id);
+        }
+        if (branch) {
+            whereClause += ' AND l.branch = ?';
+            replacements.push(branch);
+        }
+        if (loan_type) {
+            whereClause += ' AND l.loan_type = ?';
+            replacements.push(loan_type);
+        }
+        if (performance_class) {
+            whereClause += ' AND l.performance_class = ?';
+            replacements.push(performance_class);
+        }
+        if (search) {
+            whereClause += ' AND (l.loan_number LIKE ? OR l.loan_account LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.client_number LIKE ?)';
+            const searchTerm = `%${search}%`;
+            replacements.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+        }
+
+        // Get total count
+        const [countResult] = await sequelize.query(
+            `SELECT COUNT(*) as total FROM loans l LEFT JOIN clients c ON l.client_id = c.id${whereClause}`,
+            { replacements }
+        );
+        const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
+
+        // Get loans data
+        const loansReplacements = [...replacements];
+        const loansResult = await sequelize.query(`
             SELECT 
-                l.id, l.loan_number, l.status, l.created_at, l.updated_at,
-                l.applied_amount, l.approved_amount, l.loan_type, l.interest_rate,
-                l.loan_term, l.repayment_frequency, l.loan_purpose, l.collateral_type,
-                l.collateral_value, l.guarantor_name, l.guarantor_phone, l.guarantor_address,
-                l.notes, l.approved_at, l.disbursed_at, l.maturity_date,
-                l.last_payment_date, l.next_due_date, l.principal_balance, l.interest_balance,
-                l.loan_balance, l.total_paid_amount as amount_paid, l.total_due_amount, l.penalty_amount,
-                l.due_fees,
-                u1.first_name as officer_first_name,
-                u1.last_name as officer_last_name,
-                u2.first_name as approved_by_first_name,
-                u2.last_name as approved_by_last_name
+                l.id, l.loan_number, l.loan_account, l.status, 
+                l.applied_amount, l.approved_amount, l.disbursed_amount,
+                l.interest_rate, l.interest_rate_method, l.loan_term_months,
+                l.repayment_frequency, l.installment_amount, l.total_installments,
+                l.installments_outstanding, l.installments_paid, l.installments_in_arrears,
+                l.loan_balance, l.principal_balance, l.interest_balance,
+                l.arrears_principal, l.arrears_interest,
+                l.performance_class, l.days_in_arrears, l.arrears_start_date,
+                l.maturity_date, l.created_at, l.updated_at,
+                l.last_payment_date, l.first_payment_date,
+                l.loan_officer_id, l.branch, l.loan_purpose, l.economic_sector,
+                l.collateral_type, l.collateral_description, l.collateral_value,
+                l.application_date, l.approval_date, l.disbursement_date,
+                l.approved_by, l.disbursed_by, l.notes,
+                c.first_name AS client_first_name, c.last_name AS client_last_name, 
+                c.client_number, c.gender as client_gender,c.date_of_birth, c.mobile as client_mobile,
+                c.email as client_email,
+                lt.name AS loan_type_name,
+                u1.first_name as officer_first_name, u1.last_name as officer_last_name,
+                -- Calculate derived fields
+                (COALESCE(l.principal_balance, 0) + COALESCE(l.interest_balance, 0)) as total_due,
+                (COALESCE(l.approved_amount, l.applied_amount, 0) - COALESCE(l.loan_balance, 0)) as total_paid,
+                l.loan_balance as balance,
+                -- Calculate last payment amount (this would need to come from payments table)
+                0 as last_payment_amount
             FROM loans l
+            LEFT JOIN clients c ON l.client_id = c.id
+            LEFT JOIN loan_types lt ON l.loan_type = lt.id
             LEFT JOIN users u1 ON l.loan_officer_id = u1.id
-            LEFT JOIN users u2 ON l.approved_by = u2.id
-            WHERE l.client_id = ?
+            ${whereClause}
             ORDER BY l.created_at DESC
-        `, { replacements: [clientId] });
-
+            LIMIT ? OFFSET ?
+        `, {
+            replacements: [...loansReplacements, parseInt(limit), parseInt(offset)],
+            type: sequelize.QueryTypes.SELECT
+        });
+        const loans = Array.isArray(loansResult) ? loansResult : [loansResult].filter(Boolean);
+        const totalPages = Math.ceil(total / parseInt(limit));
         res.status(200).json({
             success: true,
-            data: { loans }
+            data: {
+                loans: loans,
+                pagination: {
+                    total,
+                    pages: totalPages,
+                    currentPage: parseInt(page),
+                    limit: parseInt(limit)
+                }
+            }
         });
-
     } catch (error) {
         console.error('Get loans by client error:', error);
         res.status(500).json({
@@ -933,6 +1010,8 @@ const getLoansByClient = async (req, res) => {
         });
     }
 };
+
+
 
 const calculateLoanDetails = async (req, res) => {
     try {
@@ -1029,7 +1108,7 @@ const getMyLoans = async (req, res) => {
 
         const {
             page = 1,
-            limit = 10,
+            limit = 20,
             status,
             loan_type_id,
             min_amount,

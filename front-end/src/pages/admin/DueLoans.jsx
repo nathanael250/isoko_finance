@@ -1,758 +1,542 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Search, RotateCcw, Download, Eye, Settings, AlertTriangle, Clock } from 'lucide-react';
-import { dueLoansAPI } from '../../services/api';
+import { ChevronUp, ChevronDown, ArrowDownWideNarrow, Eye, Search, Download, Calendar, User, CreditCard } from 'lucide-react';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const DueLoans = () => {
+    const [fromDate, setFromDate] = useState(null);
+    const [toDate, setToDate] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [entriesPerPage, setEntriesPerPage] = useState(20);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [sortBy, setSortBy] = useState('due_date');
+    const [sortOrder, setSortOrder] = useState('ASC');
+    const [statusFilter, setStatusFilter] = useState('all');
+
+    // Data states
     const [dueLoans, setDueLoans] = useState([]);
-    const [summary, setSummary] = useState(null);
+    const [summary, setSummary] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    
-    // Updated filter states to match backend expectations
-    const [filters, setFilters] = useState({
-        startDate: new Date().toISOString().split('T')[0], // Today
-        endDate: new Date().toISOString().split('T')[0], // Today
-        includeZeroDue: false,
-        includePenaltyPeriod: false,
-        status: '', // Remove 'all' as it might not be expected
-        loanOfficerId: '',
-        branch: '',
-        performanceClass: '',
-        search: '',
-        sortBy: 'due_date',
-        sortOrder: 'ASC',
-        page: 1,
-        limit: 20
-    });
-    
-    // Table display states remain the same
-    const [visibleColumns, setVisibleColumns] = useState({
-        view: true,
-        name: true,
-        loanNumber: true,
-        principal: true,
-        totalDue: true,
-        paid: true,
-        pastDue: true,
-        amortization: true,
-        pendingDue: true,
-        nextDue: true,
-        lastPayment: true,
-        status: true
-    });
-    
-    const [showColumnSettings, setShowColumnSettings] = useState(false);
+    const [pagination, setPagination] = useState({});
 
+    // Your existing columns
+    const columns = [
+        { key: 'view', label: 'View', sortable: false, width: 'w-12' },
+        { key: 'client_name', label: 'Client', sortable: true, width: 'w-40' },
+        { key: 'loan_number', label: 'Loan#', sortable: true, width: 'w-24' },
+        { key: 'loan_balance', label: 'Balance', sortable: true, width: 'w-28' },
+        { key: 'total_outstanding', label: 'Outstanding', sortable: true, width: 'w-28' },
+        { key: 'next_due_date', label: 'Next Due', sortable: true, width: 'w-28' },
+        { key: 'next_due_amount', label: 'Due Amount', sortable: true, width: 'w-28' },
+        { key: 'overdue_amount', label: 'Overdue', sortable: true, width: 'w-28' },
+        { key: 'days_overdue', label: 'Days Past', sortable: true, width: 'w-24' },
+        { key: 'due_status', label: 'Status', sortable: false, width: 'w-24' }
+    ];
+
+    // Fetch due loans data
+
+// At the top of your component, add this function to get the auth token
+const getAuthToken = () => {
+    // Check if you're storing the token in localStorage
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken') || localStorage.getItem('accessToken');
+    return token;
+};
+
+// Update your fetchDueLoans function
+const fetchDueLoans = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+        const params = new URLSearchParams({
+            page: currentPage,
+            limit: entriesPerPage,
+            sort_by: sortBy,
+            sort_order: sortOrder,
+            status: statusFilter
+        });
+
+        // Add date range if provided
+        if (fromDate && toDate) {
+            params.append('start_date', fromDate.toISOString().split('T')[0]);
+            params.append('end_date', toDate.toISOString().split('T')[0]);
+        }
+
+        // Add search term if provided
+        if (searchTerm.trim()) {
+            params.append('search', searchTerm.trim());
+        }
+
+        const baseURL = process.env.NODE_ENV === 'production' 
+            ? 'https://your-backend-url.com' 
+            : 'http://localhost:5000';
+
+        const endpoint = fromDate && toDate 
+            ? `${baseURL}/api/due-loans/date-range?${params}`
+            : `${baseURL}/api/due-loans/today?${params}`;
+
+        console.log('Fetching from:', endpoint);
+
+        // Get the auth token
+        const token = getAuthToken();
+        
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                // Add authorization header - try both formats
+                'Authorization': `Bearer ${token}`,
+                // Alternative format if your backend expects this:
+                // 'x-auth-token': token,
+            }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('Authentication failed. Please login again.');
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Received data:', data);
+        
+        if (data.success) {
+            setDueLoans(data.data.due_loans || []);
+            setSummary(data.data.summary || {});
+            setPagination(data.data.pagination || {});
+        } else {
+            throw new Error(data.message || 'Failed to fetch due loans');
+        }
+    } catch (err) {
+        console.error('Error fetching due loans:', err);
+        setError(err.message || 'Failed to fetch due loans');
+        setDueLoans([]);
+        setSummary({});
+        setPagination({});
+    } finally {
+        setLoading(false);
+    }
+};
+
+
+    // Initial load and when dependencies change
     useEffect(() => {
         fetchDueLoans();
-    }, [filters.page, filters.limit]);
+    }, [currentPage, entriesPerPage, sortBy, sortOrder, statusFilter]);
 
-    const fetchDueLoans = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            // Format parameters to match backend expectations
-            const params = {
-                start_date: filters.startDate,
-                end_date: filters.endDate,
-                include_zero_due: filters.includeZeroDue,
-                include_penalty_period: filters.includePenaltyPeriod,
-                ...(filters.status && { status: filters.status }), // Only include if not empty
-                ...(filters.loanOfficerId && { loan_officer_id: filters.loanOfficerId }),
-                ...(filters.branch && { branch: filters.branch }),
-                ...(filters.performanceClass && { performance_class: filters.performanceClass }),
-                ...(filters.search && { search: filters.search }),
-                sort_by: filters.sortBy,
-                sort_order: filters.sortOrder,
-                page: filters.page,
-                limit: filters.limit
-            };
-
-            console.log('Sending params:', params); // Debug log
-
-            const response = await dueLoansAPI.getDueLoans(params);
-            
-            if (response.data.success) {
-                setDueLoans(response.data.data.due_loans || response.data.data || []);
-                setSummary(response.data.data.summary || null);
-            } else {
-                setError(response.data.message || 'Failed to fetch due loans');
-            }
-        } catch (err) {
-            console.error('Error fetching due loans:', err);
-            if (err.response?.data?.message) {
-                setError(err.response.data.message);
-            } else if (err.response?.data?.errors) {
-                setError(`Validation errors: ${err.response.data.errors.map(e => e.msg).join(', ')}`);
-            } else {
-                setError('Failed to load due loans. Please try again.');
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleFilterChange = (key, value) => {
-        setFilters(prev => ({
-            ...prev,
-            [key]: value,
-            page: 1 // Reset to first page when filters change
-        }));
-    };
-
-    const handleSearch = () => {
+    // Handle search
+    const handleSearch = (e) => {
+        e.preventDefault();
+        setCurrentPage(1);
         fetchDueLoans();
     };
 
+    // Handle reset
     const handleReset = () => {
-        setFilters({
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T')[0],
-            includeZeroDue: false,
-            includePenaltyPeriod: false,
-            status: '',
-            loanOfficerId: '',
-            branch: '',
-            performanceClass: '',
-            search: '',
-            sortBy: 'due_date',
-            sortOrder: 'ASC',
-            page: 1,
-            limit: 20
-        });
-        // Fetch after reset
-        setTimeout(() => fetchDueLoans(), 100);
+        setFromDate(null);
+        setToDate(null);
+        setSearchTerm('');
+        setStatusFilter('all');
+        setCurrentPage(1);
+        setSortBy('next_due_date');
+        setSortOrder('ASC');
+        fetchDueLoans();
     };
 
-    const handleExport = async () => {
-        try {
-            const exportParams = {
-                start_date: filters.startDate,
-                end_date: filters.endDate,
-                include_zero_due: filters.includeZeroDue,
-                include_penalty_period: filters.includePenaltyPeriod,
-                ...(filters.status && { status: filters.status }),
-                ...(filters.loanOfficerId && { loan_officer_id: filters.loanOfficerId }),
-                ...(filters.branch && { branch: filters.branch }),
-                ...(filters.performanceClass && { performance_class: filters.performanceClass }),
-                ...(filters.search && { search: filters.search }),
-                format: 'csv'
-            };
-            
-            const response = await dueLoansAPI.exportDueLoans(exportParams);
-            
-            // Create and download file
-            const blob = new Blob([response.data], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `due-loans-${filters.startDate}-to-${filters.endDate}.csv`;
-            link.click();
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('Export error:', err);
-            alert('Failed to export data');
+    // Handle sort
+    const handleSort = (columnKey) => {
+        if (columns.find(col => col.key === columnKey)?.sortable) {
+            if (sortBy === columnKey) {
+                setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
+            } else {
+                setSortBy(columnKey);
+                setSortOrder('ASC');
+            }
         }
     };
 
-    // Rest of your component functions remain the same...
+    // Format currency
     const formatCurrency = (amount) => {
-        if (!amount || isNaN(amount)) return 'RWF 0.00';
-        return `RWF ${parseFloat(amount).toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
-        })}`;
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2
+        }).format(amount || 0);
     };
 
-    const formatDate = (date) => {
-        if (!date) return '-';
-        return new Date(date).toLocaleDateString('en-US', {
+    // Format date
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric'
         });
     };
 
-    const getStatusColor = (status) => {
-        const colors = {
-            'pending': 'bg-yellow-100 text-yellow-800',
-            'partial': 'bg-orange-100 text-orange-800',
-            'paid': 'bg-green-100 text-green-800',
-            'overdue': 'bg-red-100 text-red-800'
-        };
-        return colors[status] || 'bg-gray-100 text-gray-800';
+    // Get status badge color
+    const getStatusBadgeColor = (status) => {
+        switch (status) {
+            case 'Overdue':
+                return 'bg-red-100 text-red-800';
+            case 'Due Today':
+                return 'bg-yellow-100 text-yellow-800';
+            case 'Due Soon':
+                return 'bg-blue-100 text-blue-800';
+            default:
+                return 'bg-gray-100 text-gray-800';
+        }
     };
 
-    const getDueStatusIcon = (loan) => {
-        if (loan.due_status === 'Overdue' || loan.days_overdue > 0) {
-            return <AlertTriangle className="w-4 h-4 text-red-500" title="Overdue" />;
-        } else if (loan.due_status === 'Due Today' || loan.days_until_due === 0) {
-            return <Clock className="w-4 h-4 text-orange-500" title="Due Today" />;
-        } else if (loan.due_status === 'Due Soon' || (loan.days_until_due > 0 && loan.days_until_due <= 7)) {
-            return <Clock className="w-4 h-4 text-yellow-500" title="Due Soon" />;
-        }
-        return null;
-    };
+    const SortableHeader = ({ column, children }) => (
+        <th className={`px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-blue-50 border-b border-gray-200 ${column.width}`}>
+            <div
+                className={`flex items-center space-x-1 ${column.sortable ? 'cursor-pointer hover:text-gray-900' : ''}`}
+                onClick={() => column.sortable && handleSort(column.key)}
+            >
+                <span>{children}</span>
+                {column.sortable && (
+                    <div className="flex flex-col">
+                        <ArrowDownWideNarrow
+                            className={`w-3 h-3 ${sortBy === column.key
+                                    ? 'text-blue-600'
+                                    : 'text-gray-400'
+                                } ${sortBy === column.key && sortOrder === 'DESC'
+                                    ? 'transform rotate-180'
+                                    : ''
+                                }`}
+                        />
+                    </div>
+                )}
+            </div>
+        </th>
+    );
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
+        <div className='min-h-screen bg-gray-200'>
+            <div className="max-w-7xl mx-auto px-4 sm:px-2 lg:px-2 py-4 space-y-4">
                 <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Due Loans</h1>
-                    <p className="text-gray-600">
-                        Open loans that have due schedule dates between selected dates. 
-                        You can use this page to see loans due today.
+                    <h1 className="text-2xl font-semibold text-gray-900 mb-2">Due Loans</h1>
+                    <p className="text-gray-600 text-sm">
+                        Loans with upcoming or overdue payment schedules. Each row represents a loan with aggregated schedule information.
                     </p>
                 </div>
 
-                {/* Summary Cards */}
-                {summary && (
+                {/* Enhanced Summary Cards */}
+                {/* {summary && Object.keys(summary).length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <div className="bg-white p-4 rounded-lg shadow">
                             <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                                        <AlertTriangle className="w-4 h-4 text-red-600" />
-                                    </div>
-                                </div>
+                                <CreditCard className="h-8 w-8 text-blue-500" />
                                 <div className="ml-3">
-                                    <p className="text-sm font-medium text-gray-500">Overdue</p>
-                                    <p className="text-lg font-semibold text-gray-900">{summary.overdue?.count || 0}</p>
-                                    <p className="text-xs text-gray-500">{formatCurrency(summary.overdue?.amount || 0)}</p>
+                                    <h3 className="text-sm font-medium text-gray-500">Total Outstanding</h3>
+                                    <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.total_outstanding)}</p>
+                                    <p className="text-sm text-gray-500">{summary.total_loans} loans</p>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <div className="bg-white p-4 rounded-lg shadow">
                             <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                                        <Clock className="w-4 h-4 text-orange-600" />
-                                    </div>
+                                <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center">
+                                    <span className="text-red-600 font-bold text-sm">!</span>
                                 </div>
                                 <div className="ml-3">
-                                    <p className="text-sm font-medium text-gray-500">Due Today</p>
-                                    <p className="text-lg font-semibold text-gray-900">{summary.due_today?.count || 0}</p>
-                                    <p className="text-xs text-gray-500">{formatCurrency(summary.due_today?.amount || 0)}</p>
+                                    <h3 className="text-sm font-medium text-gray-500">Overdue</h3>
+                                    <p className="text-2xl font-bold text-red-600">{formatCurrency(summary.overdue?.amount)}</p>
+                                    <p className="text-sm text-gray-500">{summary.overdue?.loans} loans</p>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <div className="bg-white p-4 rounded-lg shadow">
                             <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                                        <Clock className="w-4 h-4 text-yellow-600" />
-                                    </div>
-                                </div>
+                                <Calendar className="h-8 w-8 text-yellow-500" />
                                 <div className="ml-3">
-                                    <p className="text-sm font-medium text-gray-500">Due Soon</p>
-                                    <p className="text-lg font-semibold text-gray-900">{summary.due_soon?.count || 0}</p>
-                                    <p className="text-xs text-gray-500">{formatCurrency(summary.due_soon?.amount || 0)}</p>
+                                    <h3 className="text-sm font-medium text-gray-500">Due Today</h3>
+                                    <p className="text-2xl font-bold text-yellow-600">{formatCurrency(summary.due_today?.amount)}</p>
+                                    <p className="text-sm text-gray-500">{summary.due_today?.loans} loans</p>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <div className="bg-white p-4 rounded-lg shadow">
                             <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <Calendar className="w-4 h-4 text-blue-600" />
-                                    </div>
+                                <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span className="text-blue-600 font-bold text-sm">7</span>
                                 </div>
                                 <div className="ml-3">
-                                    <p className="text-sm font-medium text-gray-500">Total Outstanding</p>
-                                    <p className="text-lg font-semibold text-gray-900">{summary.total_schedules || 0}</p>
-                                    <p className="text-xs text-gray-500">{formatCurrency(summary.total_outstanding || 0)}</p>
+                                    <h3 className="text-sm font-medium text-gray-500">Due Soon</h3>
+                                    <p className="text-2xl font-bold text-blue-600">{formatCurrency(summary.due_soon?.amount)}</p>
+                                    <p className="text-sm text-gray-500">{summary.due_soon?.loans} loans</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                )}
+                )} */}
 
-                {/* Filters */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-                    <div className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                            {/* Date Range */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Date Range
-                                </label>
-                                <div className="flex space-x-2">
-                                    <input
-                                        type="date"
-                                        value={filters.startDate}
-                                        onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                {/* Your existing filters */}
+                <div className='bg-white px-4 py-4 border-t-2 border-green-500'>
+                    <form onSubmit={handleSearch} className='text-sm'>
+                        <div className='flex flex-col gap-y-4'>
+                            <label className='font-semibold'>Date Range:</label>
+                            <div className='flex items-center gap-4'>
+                                <div className='flex-grow'>
+                                    <DatePicker
+                                        selected={fromDate}
+                                        onChange={(date) => setFromDate(date)}
+                                        placeholderText='From date'
+                                        wrapperClassName='w-full'
+                                        className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                                        dateFormat="dd/MM/yyyy"
                                     />
-                                    <span className="self-center text-gray-500">to</span>
-                                    <input
-                                        type="date"
-                                        value={filters.endDate}
-                                        onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                                </div>
+                                <span className='text-gray-500 font-medium'>To:</span>
+                                <div className='flex-grow'>
+                                    <DatePicker
+                                        selected={toDate}
+                                        onChange={(date) => setToDate(date)}
+                                        placeholderText='End date'
+                                        wrapperClassName='w-full'
+                                        className='w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                                        dateFormat="dd/MM/yyyy"
+                                        minDate={fromDate}
                                     />
                                 </div>
                             </div>
 
                             {/* Status Filter */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Status
-                                </label>
+                            <div className='flex items-center gap-4'>
+                                <label className='font-semibold'>Status:</label>
                                 <select
-                                    value={filters.status}
-                                    onChange={(e) => handleFilterChange('status', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className='px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm'
                                 >
-                                    <option value="">All Status</option>
-                                    <option value="overdue">Overdue</option>
-                                    <option value="due_today">Due Today</option>
-                                    <option value="due_soon">Due Soon</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="partial">Partial</option>
-                                    <option value="paid">Paid</option>
+                                    <option value="all">All Loans</option>
+                                    <option value="overdue">Overdue Only</option>
+                                    <option value="due_today">Due Today Only</option>
+                                    <option value="due_soon">Due Soon Only</option>
                                 </select>
                             </div>
 
-                            {/* Search */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Search
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Client name, loan number..."
-                                    value={filters.search}
-                                    onChange={(e) => handleFilterChange('search', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-
-                            {/* Entries per page */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Show entries
-                                </label>
-                                <select
-                                    value={filters.limit}
-                                    onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-                                >
-                                    <option value={20}>20</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                    <option value={250}>250</option>
-                                    <option value={500}>500</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Additional Options */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Performance Class
-                                </label>
-                                <select
-                                    value={filters.performanceClass}
-                                    onChange={(e) => handleFilterChange('performanceClass', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-                                >
-                                    <option value="">All Classes</option>
-                                    <option value="performing">Performing</option>
-                                    <option value="watch">Watch</option>
-                                    <option value="substandard">Substandard</option>
-                                    <option value="doubtful">Doubtful</option>
-                                    <option value="loss">Loss</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Branch
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Branch name..."
-                                    value={filters.branch}
-                                    onChange={(e) => handleFilterChange('branch', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Sort By
-                                </label>
-                                <select
-                                    value={filters.sortBy}
-                                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-                                >
-                                    <option value="due_date">Due Date</option>
-                                    <option value="client_name">Client Name</option>
-                                    <option value="loan_number">Loan Number</option>
-                                    <option value="amount_due">Amount Due</option>
-                                    <option value="days_overdue">Days Overdue</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Checkboxes */}
-                        <div className="flex flex-wrap gap-4 mb-4">
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    checked={filters.includeZeroDue}
-                                    onChange={(e) => handleFilterChange('includeZeroDue', e.target.checked)}
-                                    className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="text-sm text-gray-700">Include zero due amounts</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    checked={filters.includePenaltyPeriod}
-                                    onChange={(e) => handleFilterChange('includePenaltyPeriod', e.target.checked)}
-                                    className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="text-sm text-gray-700">Include penalty period</span>
-                            </label>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={handleSearch}
-                                disabled={loading}
-                                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
-                            >
-                                <Search className="w-4 h-4 mr-2" />
-                                Search!
-                            </button>
-                            <button
-                                onClick={handleReset}
-                                className="flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm"
-                            >
-                                <RotateCcw className="w-4 h-4 mr-2" />
-                                Reset!
-                            </button>
-                            <button
-                                onClick={handleExport}
-                                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
-                            >
-                                <Download className="w-4 h-4 mr-2" />
-                                Export Data
-                            </button>
-                            <div className="relative">
+                            <div className='flex justify-between'>
                                 <button
-                                    onClick={() => setShowColumnSettings(!showColumnSettings)}
-                                    className="flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm"
+                                    type="submit"
+                                    disabled={loading}
+                                    className='bg-purple-500 hover:bg-purple-700 disabled:bg-purple-300 text-white font-bold py-2 px-4 text-sm cursor-pointer rounded'
                                 >
-                                    <Settings className="w-4 h-4 mr-2" />
-                                    Show/Hide Columns
+                                    {loading ? 'Searching...' : 'Search!'}
                                 </button>
-                                
-                                {/* Column Settings Dropdown */}
-                                {showColumnSettings && (
-                                    <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-10">
-                                        <div className="p-3">
-                                            <h4 className="font-medium text-gray-900 mb-2">Visible Columns</h4>
-                                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                                                {Object.entries(visibleColumns).map(([key, value]) => (
-                                                    <label key={key} className="flex items-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={value}
-                                                            onChange={(e) => setVisibleColumns(prev => ({
-                                                                ...prev,
-                                                                [key]: e.target.checked
-                                                            }))}
-                                                            className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                        />
-                                                        <span className="text-sm text-gray-700 capitalize">
-                                                            {key.replace(/([A-Z])/g, ' $1').trim()}
-                                                        </span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleReset}
+                                    className='bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 text-sm cursor-pointer rounded'                                >
+                                    Reset!
+                                </button>
                             </div>
                         </div>
-                    </div>
+                    </form>
                 </div>
 
-                {/* Results Table */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    {visibleColumns.view && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            View
-                                        </th>
-                                    )}
-                                    {visibleColumns.name && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Name
-                                        </th>
-                                    )}
-                                    {visibleColumns.loanNumber && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Loan#
-                                        </th>
-                                    )}
-                                    {visibleColumns.principal && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Principal
-                                        </th>
-                                    )}
-                                    {visibleColumns.totalDue && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Total Due
-                                        </th>
-                                    )}
-                                    {visibleColumns.paid && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Paid
-                                        </th>
-                                    )}
-                                    {visibleColumns.pastDue && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Past Due
-                                        </th>
-                                    )}
-                                    {visibleColumns.amortization && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Amortization
-                                        </th>
-                                    )}
-                                    {visibleColumns.pendingDue && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Pending Due
-                                        </th>
-                                    )}
-                                    {visibleColumns.nextDue && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Next Due
-                                        </th>
-                                    )}
-                                    {visibleColumns.lastPayment && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Last Payment
-                                        </th>
-                                    )}
-                                    {visibleColumns.status && (
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Status
-                                        </th>
-                                    )}
+                <div className='flex justify-between items-center'>
+                    <button className="text-xs px-2 py-1 border border-slate-300 bg-gray-100 text-gray-700 cursor-pointer">Export Data</button>
+                    <button className="text-xs px-2 py-1 border border-slate-300 bg-gray-100 text-gray-700 cursor-pointer">Show/Hide Columns</button>
+                </div>
+
+                <div className='bg-gray-50 border-t-2 border-green-500'>
+                    <div className="flex justify-between items-center p-4">
+                        <div className="flex items-center space-x-2">
+                            <div className="relative">
+                                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                <input
+                                    type="text"
+                                    placeholder="Search loans..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSearch(e)}
+                                    className="pl-8 pr-3 py-1 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs w-48"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <label className="text-xs text-gray-700">Show</label>
+                            <select
+                                value={entriesPerPage}
+                                onChange={(e) => {
+                                    setEntriesPerPage(parseInt(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                                className="px-2 py-1 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+                            >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                            <label className="text-sm text-gray-700">entries</label>
+                        </div>
+                    </div>
+
+                    {/* Error Display */}
+                    {error && (
+                        <div className="mx-4 mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <div className="text-red-800 text-sm">{error}</div>
+                        </div>
+                    )}
+
+                    {/* Data Table */}
+                    <div className="overflow-x-auto px-4 py-2">
+                        <table className="min-w-full">
+                            <thead>
+                                <tr className="border-b">
+                                    {columns.map((column) => (
+                                        <SortableHeader key={column.key} column={column}>
+                                            {column.label}
+                                        </SortableHeader>
+                                    ))}
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-white">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan="12" className="px-4 py-8 text-center">
-                                            <div className="flex items-center justify-center">
-                                                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-                                                Loading due loans...
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ) : error ? (
-                                    <tr>
-                                        <td colSpan="12" className="px-4 py-8 text-center text-red-600">
-                                            <div className="flex flex-col items-center">
-                                                <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
-                                                <p className="font-medium">Error Loading Data</p>
-                                                <p className="text-sm">{error}</p>
-                                                <button 
-                                                    onClick={fetchDueLoans}
-                                                    className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                                                >
-                                                    Try Again
-                                                </button>
+                                        <td colSpan={columns.length} className="px-6 py-8 text-center text-gray-500 text-sm">
+                                            <div className="flex items-center justify-center space-x-2">
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                                <span>Loading due loans...</span>
                                             </div>
                                         </td>
                                     </tr>
                                 ) : dueLoans.length === 0 ? (
                                     <tr>
-                                        <td colSpan="12" className="px-4 py-8 text-center text-gray-500">
-                                            <div className="flex flex-col items-center">
-                                                <Calendar className="w-12 h-12 text-gray-300 mb-2" />
-                                                <p className="text-lg font-medium">No data found.</p>
-                                                <p className="text-sm">No loans found for the selected criteria.</p>
-                                            </div>
+                                        <td colSpan={columns.length} className="px-6 py-2 text-center text-gray-500 text-xs">
+                                            {error ? 'Error loading data. Please try again.' : 'No data found. No loans found.'}
                                         </td>
                                     </tr>
                                 ) : (
                                     dueLoans.map((loan, index) => (
-                                        <tr key={loan.loan_id || loan.id || index} className="hover:bg-gray-50">
-                                            {visibleColumns.view && (
-                                                <td className="px-4 py-4 whitespace-nowrap">
-                                                    <button
-                                                        onClick={() => window.open(`/dashboard/admin/loans/${loan.loan_id || loan.id}`, '_blank')}
-                                                        className="text-blue-600 hover:text-blue-800"
-                                                        title="View Loan Details"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </button>
-                                                </td>
-                                            )}
-                                            {visibleColumns.name && (
-                                                <td className="px-4 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        {getDueStatusIcon(loan)}
-                                                        <div className="ml-2">
-                                                            <div className="text-sm font-medium text-gray-900">
-                                                                                                                                {loan.client_name || `${loan.client_first_name || ''} ${loan.client_last_name || ''}`.trim()}
-                                                            </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {loan.client_number}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            )}
-                                            {visibleColumns.loanNumber && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {loan.loan_number}
-                                                </td>
-                                            )}
-                                            {visibleColumns.principal && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {formatCurrency(loan.principal_amount || loan.principal)}
-                                                </td>
-                                            )}
-                                            {visibleColumns.totalDue && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {formatCurrency(loan.total_due_amount || loan.total_due)}
-                                                </td>
-                                            )}
-                                            {visibleColumns.paid && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {formatCurrency(loan.total_paid)}
-                                                </td>
-                                            )}
-                                            {visibleColumns.pastDue && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    <span className={`${(loan.overdue_amount || loan.past_due || 0) > 0 ? 'text-red-600 font-medium' : ''}`}>
-                                                        {formatCurrency(loan.overdue_amount || loan.past_due)}
-                                                    </span>
-                                                </td>
-                                            )}
-                                            {visibleColumns.amortization && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {formatCurrency(loan.installment_amount)}
-                                                </td>
-                                            )}
-                                            {visibleColumns.pendingDue && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    <span className={`${(loan.pending_amount || loan.pending_due || 0) > 0 ? 'text-orange-600 font-medium' : ''}`}>
-                                                        {formatCurrency(loan.pending_amount || loan.pending_due)}
-                                                    </span>
-                                                </td>
-                                            )}
-                                            {visibleColumns.nextDue && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {formatDate(loan.due_date || loan.next_due_date)}
-                                                </td>
-                                            )}
-                                            {visibleColumns.lastPayment && (
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    <div>
-                                                        <div>{formatDate(loan.last_payment_date)}</div>
-                                                        {loan.last_payment_amount && (
-                                                            <div className="text-xs text-gray-500">
-                                                                {formatCurrency(loan.last_payment_amount)}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            )}
-                                            {visibleColumns.status && (
-                                                <td className="px-4 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(loan.payment_status || loan.status)}`}>
-                                                        {(loan.payment_status || loan.status || 'N/A').toUpperCase()}
-                                                    </span>
-                                                </td>
-                                            )}
+                                        <tr key={loan.loan_id || index} className="hover:bg-gray-50 border-b border-gray-100">
+                                            <td className="px-3 py-1 w-12">
+                                                <button className="text-blue-600 hover:text-blue-800">
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
+                                            </td>
+                                            <td className="px-3 py-1 w-40">
+                                                <div className="text-sm font-medium text-gray-900">
+                                                    {loan.client_name}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                    {loan.client_mobile}
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-1 w-24 text-xs text-gray-900">
+                                                {loan.loan_number}
+                                            </td>
+                                            <td className="px-3 py-1 w-28 text-xs text-gray-900 text-center">
+                                                {formatCurrency(loan.loan_balance)}
+                                            </td>
+                                            <td className="px-3 py-1 w-28 text-xs text-gray-900 text-center">
+                                                {formatCurrency(loan.total_outstanding)}
+                                            </td>
+                                            <td className="px-3 py-1 w-28 text-xs text-gray-900 text-center">
+                                                {formatDate(loan.next_due_date)}
+                                            </td>
+                                            <td className="px-3 py-1 w-28 text-xs text-gray-900 text-center">
+                                                {formatCurrency(loan.next_due_amount)}
+                                            </td>
+                                            <td className="px-3 py-1 w-28 text-xs text-center">
+                                                <span className={`${parseFloat(loan.overdue_amount || 0) > 0 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                                                    {parseFloat(loan.overdue_amount || 0) > 0 ? formatCurrency(loan.overdue_amount) : '0.00'}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-1 w-24 text-xs text-center">
+                                                <span className={`${parseFloat(loan.days_overdue || 0) > 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+                                                    {loan.days_overdue || 0}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-1 w-24">
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(loan.due_status)}`}>
+                                                    {loan.due_status}
+                                                </span>
+                                            </td>
                                         </tr>
                                     ))
+                                )}
+
+                                {/* Summary Row */}
+                                {dueLoans.length > 0 && (
+                                    <tr className="text-sm font-medium text-gray-900 bg-gray-300">
+                                        <td className="px-3 py-1 w-12"></td>
+                                        <td className="px-3 py-1 w-40 font-bold">TOTALS</td>
+                                        <td className="px-3 py-1 w-24"></td>
+                                        <td className="px-3 py-1 text-center w-28">
+                                            {formatCurrency(dueLoans.reduce((sum, loan) => sum + parseFloat(loan.loan_balance || 0), 0))}
+                                        </td>
+                                        <td className="px-3 py-1 text-center w-28">
+                                            {formatCurrency(dueLoans.reduce((sum, loan) => sum + parseFloat(loan.total_outstanding || 0), 0))}
+                                        </td>
+                                        <td className="px-3 py-1 text-center w-28"></td>
+                                        <td className="px-3 py-1 text-center w-28">
+                                            {formatCurrency(dueLoans.reduce((sum, loan) => sum + parseFloat(loan.next_due_amount || 0), 0))}
+                                        </td>
+                                        <td className="px-3 py-1 text-center w-28">
+                                            {formatCurrency(dueLoans.reduce((sum, loan) => sum + parseFloat(loan.overdue_amount || 0), 0))}
+                                        </td>
+                                        <td className="px-3 py-1 w-24"></td>
+                                        <td className="px-3 py-1 w-24"></td>
+                                    </tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
 
                     {/* Pagination */}
-                    {dueLoans.length > 0 && (
-                        <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex-1 flex justify-between sm:hidden">
-                                    <button
-                                        onClick={() => handleFilterChange('page', Math.max(1, filters.page - 1))}
-                                        disabled={filters.page === 1}
-                                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                                    >
-                                        Previous
-                                    </button>
-                                    <button
-                                        onClick={() => handleFilterChange('page', filters.page + 1)}
-                                        disabled={dueLoans.length < filters.limit}
-                                        className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                                    <div>
-                                        <p className="text-sm text-gray-700">
-                                            Showing{' '}
-                                            <span className="font-medium">
-                                                {((filters.page - 1) * filters.limit) + 1}
-                                            </span>{' '}
-                                            to{' '}
-                                            <span className="font-medium">
-                                                {Math.min(filters.page * filters.limit, ((filters.page - 1) * filters.limit) + dueLoans.length)}
-                                            </span>{' '}
-                                            of{' '}
-                                            <span className="font-medium">
-                                                {summary?.total_schedules || dueLoans.length}
-                                            </span>{' '}
-                                            entries
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                                            <button
-                                                onClick={() => handleFilterChange('page', Math.max(1, filters.page - 1))}
-                                                disabled={filters.page === 1}
-                                                className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                                            >
-                                                Previous
-                                            </button>
-                                            <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-                                                Page {filters.page}
-                                            </span>
-                                            <button
-                                                onClick={() => handleFilterChange('page', filters.page + 1)}
-                                                disabled={dueLoans.length < filters.limit}
-                                                className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                                            >
-                                                Next
-                                            </button>
-                                        </nav>
-                                    </div>
-                                </div>
-                            </div>
+                    <div className="flex justify-between items-center px-4 py-1 bg-white pb-2">
+                        <div className="text-xs text-gray-700">
+                            Showing {dueLoans.length > 0 ? ((currentPage - 1) * entriesPerPage) + 1 : 0} to{' '}
+                            {Math.min(currentPage * entriesPerPage, pagination.total || dueLoans.length)} of{' '}
+                            {pagination.total || dueLoans.length} entries
                         </div>
-                    )}
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1 || loading}
+                                className="px-2 py-1 border border-gray-300 text-xs text-gray-500 bg-gray-50 hover:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                                Previous
+                            </button>
+
+                            {/* Page Numbers */}
+                            {pagination.pages > 1 && (
+                                <div className="flex space-x-1">
+                                    {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                                        const pageNum = i + 1;
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                disabled={loading}
+                                                className={`px-2 py-1 text-xs border ${currentPage === pageNum
+                                                        ? 'bg-blue-500 text-white border-blue-500'
+                                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                    }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, pagination.pages || 1))}
+                                disabled={currentPage === (pagination.pages || 1) || loading}
+                                className="px-2 py-1 border border-gray-300 text-xs text-gray-500 bg-gray-50 hover:bg-gray-100 disabled:cursor-not-allowed"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -760,3 +544,4 @@ const DueLoans = () => {
 };
 
 export default DueLoans;
+

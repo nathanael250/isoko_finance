@@ -85,7 +85,7 @@ const LoanCalculator = () => {
   const handleLoanTypeChange = (e) => {
     const loanTypeId = e.target.value;
     const selectedLoanType = loanTypes.find(type => type.id === parseInt(loanTypeId));
-    
+
     if (selectedLoanType) {
       setFormData(prev => ({
         ...prev,
@@ -95,13 +95,13 @@ const LoanCalculator = () => {
         repaymentCycle: selectedLoanType.default_frequency || 'monthly'
       }));
     } else {
-        setFormData(prev => ({
-            ...prev,
-            loanTypeId: loanTypeId,
-            interestRate: '',
-            interestMethod: 'reducing_balance_equal_installments',
-            repaymentCycle: 'monthly'
-        }));
+      setFormData(prev => ({
+        ...prev,
+        loanTypeId: loanTypeId,
+        interestRate: '',
+        interestMethod: 'reducing_balance_equal_installments',
+        repaymentCycle: 'monthly'
+      }));
     }
   };
 
@@ -154,7 +154,7 @@ const LoanCalculator = () => {
           // A full re-amortization would be more complex and require re-running the loan logic.
         }
       }
-      
+
       return newSchedule;
     });
   };
@@ -173,24 +173,24 @@ const LoanCalculator = () => {
     const repaymentCycle = formData.repaymentCycle;
 
     if (isNaN(principal) || principal <= 0) {
-        alert('Please enter a valid Principal Outstanding amount.');
-        setResults(null);
-        return;
+      alert('Please enter a valid Principal Outstanding amount.');
+      setResults(null);
+      return;
     }
     if (isNaN(inputInterestRate)) {
-        alert('Please enter a valid Interest Rate.');
-        setResults(null);
-        return;
+      alert('Please enter a valid Interest Rate.');
+      setResults(null);
+      return;
     }
     if (isNaN(numberOfRepayments) || numberOfRepayments <= 0) {
-        alert('Please enter a valid Number of Repayments.');
-        setResults(null);
-        return;
+      alert('Please enter a valid Number of Repayments.');
+      setResults(null);
+      return;
     }
     if (!formData.loanReleaseDate) {
-        alert('Please select a Loan Release Date.');
-        setResults(null);
-        return;
+      alert('Please select a Loan Release Date.');
+      setResults(null);
+      return;
     }
 
     let periodicRate = 0; // for percentage calculations
@@ -203,69 +203,69 @@ const LoanCalculator = () => {
 
     // Calculate Maturity Date
     let maturityDate = new Date(loanStartDate);
-    switch(durationUnit) {
-        case 'days': maturityDate.setDate(loanStartDate.getDate() + loanDurationVal); break;
-        case 'weeks': maturityDate.setDate(loanStartDate.getDate() + (loanDurationVal * 7)); break;
-        case 'months': maturityDate.setMonth(loanStartDate.getMonth() + loanDurationVal); break;
-        case 'years': maturityDate.setFullYear(loanStartDate.getFullYear() + loanDurationVal); break;
+    switch (durationUnit) {
+      case 'days': maturityDate.setDate(loanStartDate.getDate() + loanDurationVal); break;
+      case 'weeks': maturityDate.setDate(loanStartDate.getDate() + (loanDurationVal * 7)); break;
+      case 'months': maturityDate.setMonth(loanStartDate.getMonth() + loanDurationVal); break;
+      case 'years': maturityDate.setFullYear(loanStartDate.getFullYear() + loanDurationVal); break;
     }
 
     // Determine periodic rate/amount based on interest type and period
     if (interestType === 'percentage') {
-        // Convert the input rate to a rate per repayment cycle
-        let ratePerPeriod;
-        const inputRateDecimal = inputInterestRate / 100;
+      // Convert the input rate to a rate per repayment cycle
+      let ratePerPeriod;
+      const inputRateDecimal = inputInterestRate / 100;
 
-        if (interestPeriod === 'loan') {
-            // If interest is per loan, distribute it evenly across repayments
-            ratePerPeriod = inputRateDecimal / numberOfRepayments;
-        } else {
-            // Convert input rate to annual equivalent based on its period
-            let annualRate;
-            switch(interestPeriod) {
-                case 'day': annualRate = inputRateDecimal * 365; break;
-                case 'week': annualRate = inputRateDecimal * 52; break;
-                case 'month': annualRate = inputRateDecimal * 12; break;
-                case 'year': annualRate = inputRateDecimal; break;
-                default: annualRate = inputRateDecimal; // Default to annual if not specified
-            }
-            
-            // Convert annual rate to rate per repayment cycle
-            let paymentsPerYear;
-            switch(repaymentCycle) {
-                case 'daily': paymentsPerYear = 365; break;
-                case 'weekly': paymentsPerYear = 52; break;
-                case 'monthly': paymentsPerYear = 12; break;
-                case 'quarterly': paymentsPerYear = 4; break;
-                default: paymentsPerYear = 12;
-            }
-            ratePerPeriod = annualRate / paymentsPerYear;
+      if (interestPeriod === 'loan') {
+        // If interest is per loan, distribute it evenly across repayments
+        ratePerPeriod = inputRateDecimal / numberOfRepayments;
+      } else {
+        // Convert input rate to annual equivalent based on its period
+        let annualRate;
+        switch (interestPeriod) {
+          case 'day': annualRate = inputRateDecimal * 365; break;
+          case 'week': annualRate = inputRateDecimal * 52; break;
+          case 'month': annualRate = inputRateDecimal * 12; break;
+          case 'year': annualRate = inputRateDecimal; break;
+          default: annualRate = inputRateDecimal; // Default to annual if not specified
         }
-        periodicRate = ratePerPeriod;
+
+        // Convert annual rate to rate per repayment cycle
+        let paymentsPerYear;
+        switch (repaymentCycle) {
+          case 'daily': paymentsPerYear = 365; break;
+          case 'weekly': paymentsPerYear = 52; break;
+          case 'monthly': paymentsPerYear = 12; break;
+          case 'quarterly': paymentsPerYear = 4; break;
+          default: paymentsPerYear = 12;
+        }
+        ratePerPeriod = annualRate / paymentsPerYear;
+      }
+      periodicRate = ratePerPeriod;
     } else { // interestType === 'fixed'
-        // If fixed amount, the inputInterestRate is the amount itself
-        if (interestPeriod === 'loan') {
-            periodicFixedAmount = inputInterestRate / numberOfRepayments; // Total fixed amount / number of repayments
-        } else {
-            let annualFixedAmount;
-            switch(interestPeriod) {
-                case 'day': annualFixedAmount = inputInterestRate * 365; break;
-                case 'week': annualFixedAmount = inputInterestRate * 52; break;
-                case 'month': annualFixedAmount = inputInterestRate * 12; break;
-                case 'year': annualFixedAmount = inputInterestRate; break;
-                default: annualFixedAmount = inputInterestRate; // Default to annual
-            }
-
-            let paymentsPerYear;
-            switch(repaymentCycle) {
-                case 'daily': paymentsPerYear = 365; break;
-                case 'weekly': paymentsPerYear = 52; break;
-                case 'monthly': paymentsPerYear = 12; break;
-                case 'quarterly': paymentsPerYear = 4; break;
-                default: paymentsPerYear = 12;
-            }
-            periodicFixedAmount = annualFixedAmount / paymentsPerYear;
+      // If fixed amount, the inputInterestRate is the amount itself
+      if (interestPeriod === 'loan') {
+        periodicFixedAmount = inputInterestRate / numberOfRepayments; // Total fixed amount / number of repayments
+      } else {
+        let annualFixedAmount;
+        switch (interestPeriod) {
+          case 'day': annualFixedAmount = inputInterestRate * 365; break;
+          case 'week': annualFixedAmount = inputInterestRate * 52; break;
+          case 'month': annualFixedAmount = inputInterestRate * 12; break;
+          case 'year': annualFixedAmount = inputInterestRate; break;
+          default: annualFixedAmount = inputInterestRate; // Default to annual
         }
+
+        let paymentsPerYear;
+        switch (repaymentCycle) {
+          case 'daily': paymentsPerYear = 365; break;
+          case 'weekly': paymentsPerYear = 52; break;
+          case 'monthly': paymentsPerYear = 12; break;
+          case 'quarterly': paymentsPerYear = 4; break;
+          default: paymentsPerYear = 12;
+        }
+        periodicFixedAmount = annualFixedAmount / paymentsPerYear;
+      }
     }
 
     let currentPrincipalBalance = principal;
@@ -277,108 +277,108 @@ const LoanCalculator = () => {
 
     // Calculate the fixed periodic payment for Equal Installments methods first
     if (interestMethod === 'reducing_balance_equal_installments' || interestMethod === 'compound_interest_equal_installments') {
-        if (periodicRate === 0) {
-            calculatedPeriodicPayment = principal / numberOfRepayments;
-        } else {
-            calculatedPeriodicPayment = (principal * periodicRate) / (1 - Math.pow(1 + periodicRate, -numberOfRepayments));
-        }
+      if (periodicRate === 0) {
+        calculatedPeriodicPayment = principal / numberOfRepayments;
+      } else {
+        calculatedPeriodicPayment = (principal * periodicRate) / (1 - Math.pow(1 + periodicRate, -numberOfRepayments));
+      }
     }
 
     for (let i = 1; i <= numberOfRepayments; i++) {
-        let principalComponent = 0;
-        let interestComponent = 0;
-        let dueAmount = 0;
+      let principalComponent = 0;
+      let interestComponent = 0;
+      let dueAmount = 0;
 
-        let currentPaymentDueDate = new Date(loanStartDate);
-        switch(repaymentCycle) {
-            case 'daily': currentPaymentDueDate.setDate(loanStartDate.getDate() + i); break;
-            case 'weekly': currentPaymentDueDate.setDate(loanStartDate.getDate() + (i * 7)); break;
-            case 'monthly': currentPaymentDueDate.setMonth(loanStartDate.getMonth() + i); break;
-            case 'quarterly': currentPaymentDueDate.setMonth(loanStartDate.getMonth() + (i * 3)); break;
-        }
+      let currentPaymentDueDate = new Date(loanStartDate);
+      switch (repaymentCycle) {
+        case 'daily': currentPaymentDueDate.setDate(loanStartDate.getDate() + i); break;
+        case 'weekly': currentPaymentDueDate.setDate(loanStartDate.getDate() + (i * 7)); break;
+        case 'monthly': currentPaymentDueDate.setMonth(loanStartDate.getMonth() + i); break;
+        case 'quarterly': currentPaymentDueDate.setMonth(loanStartDate.getMonth() + (i * 3)); break;
+      }
 
-        // Calculate interest component for the current period
-        if (interestType === 'percentage') {
-            interestComponent = currentPrincipalBalance * periodicRate; // Based on remaining balance for most methods
-        } else { // fixed amount
-            interestComponent = periodicFixedAmount;
-        }
+      // Calculate interest component for the current period
+      if (interestType === 'percentage') {
+        interestComponent = currentPrincipalBalance * periodicRate; // Based on remaining balance for most methods
+      } else { // fixed amount
+        interestComponent = periodicFixedAmount;
+      }
 
-        switch(interestMethod) {
-            case 'reducing_balance_equal_installments':
-            case 'compound_interest_equal_installments': // Treat similarly for calculation based on periodicRate
-                principalComponent = calculatedPeriodicPayment - interestComponent;
-                dueAmount = calculatedPeriodicPayment;
-                break;
+      switch (interestMethod) {
+        case 'reducing_balance_equal_installments':
+        case 'compound_interest_equal_installments': // Treat similarly for calculation based on periodicRate
+          principalComponent = calculatedPeriodicPayment - interestComponent;
+          dueAmount = calculatedPeriodicPayment;
+          break;
 
-            case 'reducing_balance_equal_principal':
-                principalComponent = principal / numberOfRepayments;
-                dueAmount = principalComponent + interestComponent;
-                break;
+        case 'reducing_balance_equal_principal':
+          principalComponent = principal / numberOfRepayments;
+          dueAmount = principalComponent + interestComponent;
+          break;
 
-            case 'flat_rate':
-                principalComponent = principal / numberOfRepayments;
-                // For flat rate, total interest is simple interest on original principal for the full duration
-                let totalFlatRateInterest;
-                if (interestType === 'percentage') {
-                    // If interest is percentage based on the whole loan, calculate total interest first
-                    // For flat rate, we usually assume the interest rate is annual and applied on initial principal
-                    totalFlatRateInterest = principal * (inputInterestRate / 100) * (loanDurationVal / (durationUnit === 'years' ? 1 : (durationUnit === 'months' ? 12 : (durationUnit === 'weeks' ? 52 : 365))));
-                } else { // fixed amount
-                    totalFlatRateInterest = inputInterestRate; // This fixed amount is for the whole loan
-                }
-                interestComponent = totalFlatRateInterest / numberOfRepayments;
-                dueAmount = principalComponent + interestComponent;
-                break;
+        case 'flat_rate':
+          principalComponent = principal / numberOfRepayments;
+          // For flat rate, total interest is simple interest on original principal for the full duration
+          let totalFlatRateInterest;
+          if (interestType === 'percentage') {
+            // If interest is percentage based on the whole loan, calculate total interest first
+            // For flat rate, we usually assume the interest rate is annual and applied on initial principal
+            totalFlatRateInterest = principal * (inputInterestRate / 100) * (loanDurationVal / (durationUnit === 'years' ? 1 : (durationUnit === 'months' ? 12 : (durationUnit === 'weeks' ? 52 : 365))));
+          } else { // fixed amount
+            totalFlatRateInterest = inputInterestRate; // This fixed amount is for the whole loan
+          }
+          interestComponent = totalFlatRateInterest / numberOfRepayments;
+          dueAmount = principalComponent + interestComponent;
+          break;
 
-            case 'interest_only':
-                principalComponent = (i === numberOfRepayments) ? currentPrincipalBalance : 0; // Principal paid at the very last installment
-                dueAmount = interestComponent + principalComponent;
-                break;
+        case 'interest_only':
+          principalComponent = (i === numberOfRepayments) ? currentPrincipalBalance : 0; // Principal paid at the very last installment
+          dueAmount = interestComponent + principalComponent;
+          break;
 
-            case 'compound_interest_accrued':
-                principalComponent = (i === numberOfRepayments) ? principal : 0; // Principal paid at the end
-                // Interest accrues, all paid at the end. For intermediate payments, interestComponent is 0.
-                if (i === numberOfRepayments) {
-                     // Recalculate total accrued interest at the end based on initial principal and compounded rate
-                    if (interestType === 'percentage') {
-                        interestComponent = principal * (Math.pow(1 + periodicRate, numberOfRepayments) - 1); // Total accrued interest
-                    } else { // fixed amount
-                        interestComponent = inputInterestRate; // Assuming input is total fixed for loan
-                    }
-                } else {
-                    interestComponent = 0; // No interest payment until the end for accrued
-                }
-                dueAmount = principalComponent + interestComponent;
-                break;
+        case 'compound_interest_accrued':
+          principalComponent = (i === numberOfRepayments) ? principal : 0; // Principal paid at the end
+          // Interest accrues, all paid at the end. For intermediate payments, interestComponent is 0.
+          if (i === numberOfRepayments) {
+            // Recalculate total accrued interest at the end based on initial principal and compounded rate
+            if (interestType === 'percentage') {
+              interestComponent = principal * (Math.pow(1 + periodicRate, numberOfRepayments) - 1); // Total accrued interest
+            } else { // fixed amount
+              interestComponent = inputInterestRate; // Assuming input is total fixed for loan
+            }
+          } else {
+            interestComponent = 0; // No interest payment until the end for accrued
+          }
+          dueAmount = principalComponent + interestComponent;
+          break;
 
-            default: // Should not happen with exhaustive case statements
-                principalComponent = 0;
-                interestComponent = 0;
-                dueAmount = 0;
-                break;
-        }
+        default: // Should not happen with exhaustive case statements
+          principalComponent = 0;
+          interestComponent = 0;
+          dueAmount = 0;
+          break;
+      }
 
-        // Update current principal balance for the next iteration (only for principal-reducing methods)
-        if (interestMethod !== 'interest_only' && interestMethod !== 'compound_interest_accrued' || i === numberOfRepayments) {
-            currentPrincipalBalance = Math.max(0, currentPrincipalBalance - principalComponent);
-        }
-        
-        totalPrincipalPaid += principalComponent;
-        totalInterestPaid += interestComponent;
-        totalDueOverall += dueAmount;
+      // Update current principal balance for the next iteration (only for principal-reducing methods)
+      if (interestMethod !== 'interest_only' && interestMethod !== 'compound_interest_accrued' || i === numberOfRepayments) {
+        currentPrincipalBalance = Math.max(0, currentPrincipalBalance - principalComponent);
+      }
 
-        amortizationSchedule.push({
-            id: i,
-            dueDate: currentPaymentDueDate.toISOString().split('T')[0],
-            principalAmount: principalComponent.toFixed(2),
-            interestAmount: interestComponent.toFixed(2),
-            feeAmount: '0.00', // Default fees for now
-            penaltyAmount: '0.00', // Default penalties for now
-            dueAmount: dueAmount.toFixed(2),
-            principalBalance: currentPrincipalBalance.toFixed(2),
-            description: 'Repayment'
-        });
+      totalPrincipalPaid += principalComponent;
+      totalInterestPaid += interestComponent;
+      totalDueOverall += dueAmount;
+
+      amortizationSchedule.push({
+        id: i,
+        dueDate: currentPaymentDueDate.toISOString().split('T')[0],
+        principalAmount: principalComponent.toFixed(2),
+        interestAmount: interestComponent.toFixed(2),
+        feeAmount: '0.00', // Default fees for now
+        penaltyAmount: '0.00', // Default penalties for now
+        dueAmount: dueAmount.toFixed(2),
+        principalBalance: currentPrincipalBalance.toFixed(2),
+        description: 'Repayment'
+      });
     }
 
     setResults({
@@ -394,24 +394,24 @@ const LoanCalculator = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto bg-slate-200 px-4 py-8">
       <div className="w-full">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-600">Loan Calculator</h1>
         </div>
 
-        <form onSubmit={calculateLoan} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <form onSubmit={calculateLoan} className="bg-white rounded-lg shadow-lg p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Loan Type Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Loan Type *
               </label>
               <select
                 name="loanTypeId"
                 value={formData.loanTypeId}
                 onChange={handleLoanTypeChange}
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               >
                 <option value="">Select a loan type</option>
@@ -423,7 +423,7 @@ const LoanCalculator = () => {
 
             {/* Principal Amount */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Principal Outstanding *
               </label>
               <input
@@ -432,13 +432,13 @@ const LoanCalculator = () => {
                 value={formData.principalOutstanding}
                 onChange={handleInputChange}
                 placeholder="Enter principal amount"
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Loan Release Date *
               </label>
               <input
@@ -446,21 +446,21 @@ const LoanCalculator = () => {
                 name="loanReleaseDate"
                 value={formData.loanReleaseDate}
                 onChange={handleInputChange}
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Interest Details */}
             <div className="col-span-2">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-3 flex items-center">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2 mt-3 flex items-center">
                 <Percent className="h-5 w-5 mr-2 text-primary" />
                 Interest Details
               </h2>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Interest Rate *
               </label>
               <input
@@ -469,20 +469,20 @@ const LoanCalculator = () => {
                 value={formData.interestRate}
                 onChange={handleInputChange}
                 placeholder="Enter interest rate"
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Interest Period *
               </label>
               <select
                 name="interestPeriod"
                 value={formData.interestPeriod}
                 onChange={handleInputChange}
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="day">Per Day</option>
                 <option value="week">Per Week</option>
@@ -493,14 +493,14 @@ const LoanCalculator = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Interest Method *
               </label>
               <select
                 name="interestMethod"
                 value={formData.interestMethod}
                 onChange={handleInputChange}
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="reducing_balance_equal_installments">Reducing Balance - Equal Installments</option>
                 <option value="reducing_balance_equal_principal">Reducing Balance - Equal Principal</option>
@@ -511,7 +511,7 @@ const LoanCalculator = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Interest Type *
               </label>
               <div className="space-y-1">
@@ -523,9 +523,9 @@ const LoanCalculator = () => {
                     value="percentage"
                     checked={formData.interestType === 'percentage'}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-primary focus:ring-primary border-gray-300 dark:border-gray-600"
+                    className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
                   />
-                  <label htmlFor="percentage" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  <label htmlFor="percentage" className="ml-2 block text-sm text-gray-700">
                     I want Interest to be percentage % based
                   </label>
                 </div>
@@ -537,9 +537,9 @@ const LoanCalculator = () => {
                     value="fixed"
                     checked={formData.interestType === 'fixed'}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-primary focus:ring-primary border-gray-300 dark:border-gray-600"
+                    className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
                   />
-                  <label htmlFor="fixed" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  <label htmlFor="fixed" className="ml-2 block text-sm text-gray-700">
                     I want Interest to be a fixed amount Per Cycle
                   </label>
                 </div>
@@ -548,14 +548,14 @@ const LoanCalculator = () => {
 
             {/* Loan Terms */}
             <div className="col-span-2">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-3 flex items-center">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2 mt-3 flex items-center">
                 <Calendar className="h-5 w-5 mr-2 text-primary" />
                 Loan Terms
               </h2>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Loan Duration *
               </label>
               <div className="flex gap-2">
@@ -565,14 +565,14 @@ const LoanCalculator = () => {
                   value={formData.loanDuration}
                   onChange={handleInputChange}
                   placeholder="Enter duration"
-                  className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   required
                 />
                 <select
                   name="durationUnit"
                   value={formData.durationUnit}
                   onChange={handleInputChange}
-                  className="w-32 px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-32 px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="days">Days</option>
                   <option value="weeks">Weeks</option>
@@ -583,14 +583,14 @@ const LoanCalculator = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Repayment Cycle *
               </label>
               <select
                 name="repaymentCycle"
                 value={formData.repaymentCycle}
                 onChange={handleInputChange}
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -600,7 +600,7 @@ const LoanCalculator = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+              <label className="block text-sm font-medium text-gray-700 mb-0.5">
                 Number of Repayments *
               </label>
               <input
@@ -609,7 +609,7 @@ const LoanCalculator = () => {
                 value={formData.numberOfRepayments}
                 onChange={handleInputChange}
                 placeholder="Enter number of repayments"
-                className="w-full px-4 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -618,128 +618,129 @@ const LoanCalculator = () => {
           <div className="mt-8 flex justify-end">
             <button
               type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-primary/90"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              Calculate Loanff
+              Calculate Loan
             </button>
           </div>
         </form>
 
+
         {/* Results Section */}
         {results && (
-          <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <div className="mt-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
             {/* Top Summary Table */}
             <div className="overflow-x-auto mb-6">
-                <table className="min-w-full bg-white dark:bg-gray-700 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
-                    <thead className="bg-blue-900 dark:bg-blue-900">
-                        <tr>
-                            <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Released</th>
-                            <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Maturity</th>
-                            <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Repayment</th>
-                            <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Principal</th>
-                            <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Interest</th>
-                            <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Fees (Non Deduct)</th>
-                            <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-b border-gray-600">Due</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">{results.releasedDate}</td>
-                            <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">{results.maturityDate}</td>
-                            <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm capitalize">{results.repaymentCycleDisplay}</td>
-                            <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">${results.totalPrincipalOverall}</td>
-                            <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">${results.totalInterestOverall}</td>
-                            <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">${results.totalFeesOverall}</td>
-                            <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">${results.totalDueOverall}</td>
-                        </tr>
-                    </tbody>
-                </table>
+              <table className="min-w-full bg-white rounded-lg overflow-hidden border border-gray-200">
+                <thead className="bg-blue-600">
+                  <tr>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Released</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Maturity</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Repayment</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Principal</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Interest</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Fees (Non Deduct)</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white">Due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-gray-50">
+                    <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">{results.releasedDate}</td>
+                    <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">{results.maturityDate}</td>
+                    <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm capitalize">{results.repaymentCycleDisplay}</td>
+                    <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm font-semibold">${results.totalPrincipalOverall}</td>
+                    <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm font-semibold">${results.totalInterestOverall}</td>
+                    <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm font-semibold">${results.totalFeesOverall}</td>
+                    <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm font-semibold">${results.totalDueOverall}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                You can edit the below fields. The amounts will automatically update below.
+            <p className="text-sm text-gray-600 mb-4">
+              You can edit the below fields. The amounts will automatically update below.
             </p>
 
             {/* Amortization Schedule Table */}
             <div className="overflow-x-auto">
-              <table className="min-w-full bg-white dark:bg-gray-700 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
-                <thead className="bg-blue-900 dark:bg-blue-900">
+              <table className="min-w-full bg-white rounded-lg overflow-hidden border border-gray-200">
+                <thead className="bg-blue-600">
                   <tr>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">#</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">DueDate</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Principal Amount</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Interest Amount</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Fee Amount</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Penalty Amount</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Due Amount</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-r border-b border-gray-600">Principal Balance</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-200 border-b border-gray-600">Description</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">#</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Due Date</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Principal Amount</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Interest Amount</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Fee Amount</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Penalty Amount</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Due Amount</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white border-r border-blue-500">Principal Balance</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-white">Description</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {editableAmortizationSchedule.map((row) => (
-                    <tr key={row.id}>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">{row.id}</td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">
+                  {editableAmortizationSchedule.map((row, index) => (
+                    <tr key={row.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">{row.id}</td>
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">
                         <input
                           type="date"
                           value={row.dueDate}
                           onChange={(e) => handleAmortizationEdit(row.id, 'dueDate', e.target.value)}
-                          className="w-full bg-transparent border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm text-right"
+                          className="w-full bg-white border border-gray-300 rounded-md px-2 py-1 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                       </td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">
                         <div className="flex flex-col items-end">
                           <div className="flex items-center w-full">
                             <input
                               type="number"
                               value={row.principalAmount}
                               onChange={(e) => handleAmortizationEdit(row.id, 'principalAmount', e.target.value)}
-                              className="w-full bg-transparent border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm text-right"
+                              className="w-full bg-white border border-gray-300 rounded-md px-2 py-1 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                             <span className="ml-1 text-gray-500 text-sm">+</span>
                           </div>
-                          <span className="text-blue-500 text-xs mt-1 cursor-pointer">Set Default</span>
+                          <span className="text-blue-500 text-xs mt-1 cursor-pointer hover:text-blue-700">Set Default</span>
                         </div>
                       </td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">
                         <input
                           type="number"
                           value={row.interestAmount}
                           onChange={(e) => handleAmortizationEdit(row.id, 'interestAmount', e.target.value)}
-                          className="w-full bg-transparent border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm text-right"
+                          className="w-full bg-white border border-gray-300 rounded-md px-2 py-1 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                       </td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">
                         <div className="flex flex-col items-end">
                           <input
                             type="number"
                             value={row.feeAmount}
                             onChange={(e) => handleAmortizationEdit(row.id, 'feeAmount', e.target.value)}
-                            className="w-full bg-transparent border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm text-right"
+                            className="w-full bg-white border border-gray-300 rounded-md px-2 py-1 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
-                          <span className="text-blue-500 text-xs mt-1 cursor-pointer">Set Default</span>
+                          <span className="text-blue-500 text-xs mt-1 cursor-pointer hover:text-blue-700">Set Default</span>
                         </div>
                       </td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">
                         <div className="flex flex-col items-end">
                           <input
                             type="number"
                             value={row.penaltyAmount}
                             onChange={(e) => handleAmortizationEdit(row.id, 'penaltyAmount', e.target.value)}
-                            className="w-full bg-transparent border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm text-right"
+                            className="w-full bg-white border border-gray-300 rounded-md px-2 py-1 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
-                          <span className="text-blue-500 text-xs mt-1 cursor-pointer">Set Default</span>
+                          <span className="text-blue-500 text-xs mt-1 cursor-pointer hover:text-blue-700">Set Default</span>
                         </div>
                       </td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">
                         <div className="flex items-center justify-end">
                           <span className="mr-1 text-gray-500 text-sm">=</span>
-                          {row.dueAmount}
+                          <span className="font-semibold">{row.dueAmount}</span>
                         </div>
                       </td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">{row.principalBalance}</td>
-                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm">{row.description}</td>
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm font-medium">{row.principalBalance}</td>
+                      <td className="py-3 px-4 border-b border-gray-200 text-gray-800 text-sm">{row.description}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -753,4 +754,3 @@ const LoanCalculator = () => {
 };
 
 export default LoanCalculator;
- 

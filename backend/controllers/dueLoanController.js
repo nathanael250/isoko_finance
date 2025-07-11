@@ -1,39 +1,319 @@
 const { sequelize } = require('../config/database');
 const { validationResult } = require('express-validator');
 
-const getDueLoans = async (req, res) => {
+const getDueLoansWithoutDateRange = async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
-                message: 'Validation failed',
-                errors: errors.array()
-            });
+            return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
         }
 
-        console.log('📅 Fetching due loans for date range');
-        console.log('Query params:', req.query);
-
-        const {
-            start_date,
-            end_date,
-            page = 1,
-            limit = 20,
-            status = 'all',
-            loan_officer_id,
-            branch,
-            performance_class,
-            search,
-            sort_by = 'due_date',
-            sort_order = 'ASC'
-        } = req.query;
-
+        console.log('📅 Fetching due loans (loan-level data)');
+        const { page = 1, limit = 20, status = 'all', loan_officer_id, branch, performance_class, search, sort_by = 'due_date', sort_order = 'ASC' } = req.query;
         const offset = (page - 1) * limit;
-
         let whereClause = '';
         let replacements = [];
-        let summaryReplacements = []; // Separate array for summary query
+        let summaryReplacements = [];
+        const conditions = [];
+
+        // Modified date filter to include your future dates
+        if (status === 'overdue') {
+            conditions.push('ls.due_date < CURDATE() AND ls.status IN (?, ?)');
+            replacements.push('pending', 'partial');
+            summaryReplacements.push('pending', 'partial');
+        } else if (status === 'due_today') {
+            conditions.push('ls.due_date = CURDATE() AND ls.status IN (?, ?)');
+            replacements.push('pending', 'partial');
+            summaryReplacements.push('pending', 'partial');
+        } else if (status === 'due_soon') {
+            conditions.push('ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) AND ls.status IN (?, ?)');
+            replacements.push('pending', 'partial');
+            summaryReplacements.push('pending', 'partial');
+        } else {
+            // DEFAULT: Show overdue + next 365 days to include your 2025 dates
+            conditions.push('(ls.due_date <= DATE_ADD(CURDATE(), INTERVAL 365 DAY) OR ls.due_date < CURDATE()) AND ls.status IN (?, ?)');
+            replacements.push('pending', 'partial');
+            summaryReplacements.push('pending', 'partial');
+        }
+
+        // Include 'pending' loans
+        conditions.push('l.status IN (?, ?, ?)');
+        replacements.push('pending', 'active', 'disbursed');
+        summaryReplacements.push('pending', 'active', 'disbursed');
+
+        // Additional filters
+        if (loan_officer_id) {
+            conditions.push('l.loan_officer_id = ?');
+            replacements.push(loan_officer_id);
+            summaryReplacements.push(loan_officer_id);
+        }
+        if (branch) {
+            conditions.push('l.branch = ?');
+            replacements.push(branch);
+            summaryReplacements.push(branch);
+        }
+        if (performance_class) {
+            conditions.push('l.performance_class = ?');
+            replacements.push(performance_class);
+            summaryReplacements.push(performance_class);
+        }
+        if (search) {
+            conditions.push('(l.loan_number LIKE ? OR l.loan_account LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.client_number LIKE ?)');
+            const searchTerm = `%${search}%`;
+            replacements.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+            summaryReplacements.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+        }
+        
+        if (conditions.length > 0) {
+            whereClause = ' WHERE ' + conditions.join(' AND ');
+        }
+
+        // Get total count of LOANS (not schedules)
+        const countQuery = `
+            SELECT COUNT(DISTINCT l.id) as total 
+            FROM loan_schedules ls 
+            JOIN loans l ON ls.loan_id = l.id 
+            JOIN clients c ON l.client_id = c.id 
+            ${whereClause}
+        `;
+        const countResult = await sequelize.query(countQuery, { 
+            replacements: summaryReplacements, 
+            type: sequelize.QueryTypes.SELECT 
+        });
+        const total = countResult[0].total;
+
+        // Build the main query - GROUP BY LOAN
+        const mainQuery = `
+            SELECT 
+                -- Loan details 
+                l.id as loan_id, 
+                l.loan_number, 
+                l.loan_account, 
+                l.applied_amount, 
+                l.disbursed_amount, 
+                l.loan_balance, 
+                l.performance_class, 
+                l.branch, 
+                l.disbursement_date,
+                l.maturity_date,
+                l.status as loan_status,
+                
+                -- Client details 
+                c.id as client_id, 
+                c.client_number, 
+                c.first_name as client_first_name, 
+                c.last_name as client_last_name, 
+                c.mobile as client_mobile, 
+                c.email as client_email, 
+                CONCAT(c.first_name, ' ', c.last_name) as client_name, 
+                
+                -- Loan officer details 
+                u.first_name as officer_first_name, 
+                u.last_name as officer_last_name, 
+                u.employee_id as officer_employee_id, 
+                CONCAT(u.first_name, ' ', u.last_name) as officer_name,
+                
+                -- Aggregated schedule data for this loan
+                COUNT(ls.id) as total_schedules,
+                SUM(ls.principal_due) as total_principal_due,
+                SUM(ls.interest_due) as total_interest_due,
+                SUM(ls.total_due) as total_amount_due,
+                SUM(ls.principal_paid) as total_principal_paid,
+                SUM(ls.interest_paid) as total_interest_paid,
+                SUM(ls.total_paid) as total_amount_paid,
+                SUM(ls.total_due - ls.total_paid) as total_outstanding,
+                
+                -- Next due date and amount
+                MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.due_date END) as next_due_date,
+                MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.total_due - ls.total_paid END) as next_due_amount,
+                
+                -- Overdue information
+                COUNT(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) as overdue_schedules,
+                SUM(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as overdue_amount,
+                MAX(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN DATEDIFF(CURDATE(), ls.due_date) ELSE 0 END) as days_overdue,
+                
+                -- Status determination
+                CASE 
+                    WHEN COUNT(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) > 0 THEN 'Overdue'
+                    WHEN COUNT(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) > 0 THEN 'Due Today'
+                    WHEN COUNT(CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 END) > 0 THEN 'Due Soon'
+                    ELSE 'Future'
+                END as due_status,
+                
+                -- Last payment info
+                MAX(ls.payment_date) as last_payment_date,
+                SUM(CASE WHEN ls.payment_date = (SELECT MAX(payment_date) FROM loan_schedules WHERE loan_id = l.id) THEN ls.total_paid ELSE 0 END) as last_payment_amount
+                
+            FROM loan_schedules ls 
+            JOIN loans l ON ls.loan_id = l.id 
+            JOIN clients c ON l.client_id = c.id 
+            LEFT JOIN users u ON l.loan_officer_id = u.id 
+            ${whereClause} 
+            GROUP BY l.id, l.loan_number, l.loan_account, l.applied_amount, l.disbursed_amount, l.loan_balance, 
+                     l.performance_class, l.branch, l.disbursement_date, l.maturity_date, l.status,
+                     c.id, c.client_number, c.first_name, c.last_name, c.mobile, c.email,
+                     u.id, u.first_name, u.last_name, u.employee_id
+            ORDER BY 
+                CASE 
+                    WHEN '${sort_by}' = 'client_name' THEN c.first_name
+                    WHEN '${sort_by}' = 'loan_number' THEN l.loan_number
+                    WHEN '${sort_by}' = 'next_due_date' THEN MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.due_date END)
+                    WHEN '${sort_by}' = 'total_outstanding' THEN SUM(ls.total_due - ls.total_paid)
+                    WHEN '${sort_by}' = 'days_overdue' THEN MAX(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN DATEDIFF(CURDATE(), ls.due_date) ELSE 0 END)
+                    ELSE MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.due_date END)
+                END ${sort_order}
+            LIMIT ? OFFSET ?
+        `;
+
+        const mainQueryReplacements = [...replacements, parseInt(limit), parseInt(offset)];
+        const dueLoans = await sequelize.query(mainQuery, { 
+            replacements: mainQueryReplacements, 
+            type: sequelize.QueryTypes.SELECT 
+        });
+
+        // Calculate summary statistics
+        const summaryQuery = `
+            SELECT 
+                COUNT(DISTINCT l.id) as total_loans,
+                COUNT(ls.id) as total_schedules, 
+                SUM(ls.total_due - ls.total_paid) as total_outstanding, 
+                COUNT(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) as overdue_schedules,
+                SUM(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as overdue_amount, 
+                COUNT(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) as due_today_schedules,
+                SUM(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as due_today_amount, 
+                COUNT(CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 END) as due_soon_schedules,
+                SUM(CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as due_soon_amount,
+                
+                -- Loan-level counts
+                COUNT(DISTINCT CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN l.id END) as overdue_loans,
+                COUNT(DISTINCT CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN l.id END) as due_today_loans,
+                COUNT(DISTINCT CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN l.id END) as due_soon_loans
+                
+            FROM loan_schedules ls 
+            JOIN loans l ON ls.loan_id = l.id 
+            JOIN clients c ON l.client_id = c.id 
+            ${whereClause}
+        `;
+
+        const summaryResult = await sequelize.query(summaryQuery, { 
+            replacements: summaryReplacements, 
+            type: sequelize.QueryTypes.SELECT 
+        });
+        const summary = summaryResult[0];
+
+        console.log(`📊 Found ${dueLoans.length} loans with due schedules`);
+        res.status(200).json({
+            success: true,
+            data: {
+                due_loans: dueLoans.map(loan => ({
+                    // Loan information
+                    loan_id: loan.loan_id,
+                    loan_number: loan.loan_number,
+                    loan_account: loan.loan_account,
+                    loan_status: loan.loan_status,
+                    applied_amount: parseFloat(loan.applied_amount || 0),
+                    disbursed_amount: parseFloat(loan.disbursed_amount || 0),
+                    loan_balance: parseFloat(loan.loan_balance || 0),
+                    performance_class: loan.performance_class,
+                    branch: loan.branch,
+                    disbursement_date: loan.disbursement_date,
+                    maturity_date: loan.maturity_date,
+                    
+                    // Client information
+                    client_id: loan.client_id,
+                    client_number: loan.client_number,
+                    client_name: loan.client_name,
+                    client_first_name: loan.client_first_name,
+                    client_last_name: loan.client_last_name,
+                    client_mobile: loan.client_mobile,
+                    client_email: loan.client_email,
+                    
+                    // Loan officer information
+                    officer_name: loan.officer_name,
+                    officer_employee_id: loan.officer_employee_id,
+                    
+                    // Schedule aggregations
+                    total_schedules: parseInt(loan.total_schedules || 0),
+                    total_principal_due: parseFloat(loan.total_principal_due || 0),
+                    total_interest_due: parseFloat(loan.total_interest_due || 0),
+                    total_amount_due: parseFloat(loan.total_amount_due || 0),
+                    total_principal_paid: parseFloat(loan.total_principal_paid || 0),
+                    total_interest_paid: parseFloat(loan.total_interest_paid || 0),
+                    total_amount_paid: parseFloat(loan.total_amount_paid || 0),
+                    total_outstanding: parseFloat(loan.total_outstanding || 0),
+                    
+                                        // Next due information
+                    next_due_date: loan.next_due_date,
+                    next_due_amount: parseFloat(loan.next_due_amount || 0),
+                    
+                    // Overdue information
+                    overdue_schedules: parseInt(loan.overdue_schedules || 0),
+                    overdue_amount: parseFloat(loan.overdue_amount || 0),
+                    days_overdue: parseInt(loan.days_overdue || 0),
+                    due_status: loan.due_status,
+                    
+                    // Payment information
+                    last_payment_date: loan.last_payment_date,
+                    last_payment_amount: parseFloat(loan.last_payment_amount || 0)
+                })),
+                summary: {
+                    total_loans: parseInt(summary.total_loans || 0),
+                    total_schedules: parseInt(summary.total_schedules || 0),
+                    total_outstanding: parseFloat(summary.total_outstanding || 0),
+                    overdue: {
+                        loans: parseInt(summary.overdue_loans || 0),
+                        schedules: parseInt(summary.overdue_schedules || 0),
+                        amount: parseFloat(summary.overdue_amount || 0)
+                    },
+                    due_today: {
+                        loans: parseInt(summary.due_today_loans || 0),
+                        schedules: parseInt(summary.due_today_schedules || 0),
+                        amount: parseFloat(summary.due_today_amount || 0)
+                    },
+                    due_soon: {
+                        loans: parseInt(summary.due_soon_loans || 0),
+                        schedules: parseInt(summary.due_soon_schedules || 0),
+                        amount: parseFloat(summary.due_soon_amount || 0)
+                    }
+                },
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    pages: Math.ceil(total / limit)
+                },
+                filters_applied: {
+                    status,
+                    loan_officer_id,
+                    branch,
+                    performance_class,
+                    search
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get due loans error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching due loans', error: error.message });
+    }
+};
+
+
+
+
+
+const getDueLoansWithDateRange = async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+        }
+
+        console.log('📅 Fetching due loans for date range (loan-level data)');
+        const { start_date, end_date, page = 1, limit = 20, status = 'all', loan_officer_id, branch, performance_class, search, sort_by = 'next_due_date', sort_order = 'ASC' } = req.query;
+        const offset = (page - 1) * limit;
+        let whereClause = '';
+        let replacements = [];
+        let summaryReplacements = [];
         const conditions = [];
 
         // Date range filter
@@ -41,14 +321,6 @@ const getDueLoans = async (req, res) => {
             conditions.push('ls.due_date BETWEEN ? AND ?');
             replacements.push(start_date, end_date);
             summaryReplacements.push(start_date, end_date);
-        } else if (start_date) {
-            conditions.push('ls.due_date >= ?');
-            replacements.push(start_date);
-            summaryReplacements.push(start_date);
-        } else if (end_date) {
-            conditions.push('ls.due_date <= ?');
-            replacements.push(end_date);
-            summaryReplacements.push(end_date);
         }
 
         // Status filters
@@ -71,9 +343,9 @@ const getDueLoans = async (req, res) => {
         }
 
         // Only include active loans
-        conditions.push('l.status IN (?, ?)');
-        replacements.push('active', 'disbursed');
-        summaryReplacements.push('active', 'disbursed');
+        conditions.push('l.status IN (?, ?, ?)');
+        replacements.push('pending', 'active', 'disbursed');
+        summaryReplacements.push('pending', 'active', 'disbursed');
 
         // Additional filters
         if (loan_officer_id) {
@@ -81,163 +353,233 @@ const getDueLoans = async (req, res) => {
             replacements.push(loan_officer_id);
             summaryReplacements.push(loan_officer_id);
         }
-
         if (branch) {
             conditions.push('l.branch = ?');
             replacements.push(branch);
             summaryReplacements.push(branch);
         }
-
         if (performance_class) {
             conditions.push('l.performance_class = ?');
             replacements.push(performance_class);
             summaryReplacements.push(performance_class);
         }
-
         if (search) {
             conditions.push('(l.loan_number LIKE ? OR l.loan_account LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.client_number LIKE ?)');
             const searchTerm = `%${search}%`;
             replacements.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
             summaryReplacements.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
         }
-
+        
         if (conditions.length > 0) {
             whereClause = ' WHERE ' + conditions.join(' AND ');
         }
 
-        // Validate sort parameters
-        const allowedSortFields = ['due_date', 'loan_number', 'client_name', 'total_due', 'days_overdue', 'performance_class'];
-        const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'due_date';
-        const sortDirection = sort_order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-
-        // Get total count
-        const [countResult] = await sequelize.query(`
-            SELECT COUNT(*) as total 
-            FROM loan_schedules ls
-            JOIN loans l ON ls.loan_id = l.id
-            JOIN clients c ON l.client_id = c.id
+        // Get total count of LOANS (not schedules)
+        const countQuery = `
+            SELECT COUNT(DISTINCT l.id) as total 
+            FROM loan_schedules ls 
+            JOIN loans l ON ls.loan_id = l.id 
+            JOIN clients c ON l.client_id = c.id 
             ${whereClause}
-        `, { replacements: summaryReplacements });
-
+        `;
+        const countResult = await sequelize.query(countQuery, { 
+            replacements: summaryReplacements, 
+            type: sequelize.QueryTypes.SELECT 
+        });
         const total = countResult[0].total;
 
-        // Build the main query
-        let orderByClause = '';
-        if (sortField === 'client_name') {
-            orderByClause = `ORDER BY c.first_name ${sortDirection}, c.last_name ${sortDirection}`;
-        } else if (sortField === 'days_overdue') {
-            orderByClause = `ORDER BY CASE 
-                WHEN ls.due_date < CURDATE() THEN DATEDIFF(CURDATE(), ls.due_date) 
-                ELSE 0 
-            END ${sortDirection}`;
-        } else {
-            orderByClause = `ORDER BY ${sortField === 'total_due' ? 'ls.total_due' : `ls.${sortField}`} ${sortDirection}`;
-        }
-
-        // Add pagination parameters to main query replacements
-        const mainQueryReplacements = [...replacements, parseInt(limit), parseInt(offset)];
-
-        // Get due loans with comprehensive details
-        const [dueLoans] = await sequelize.query(`
+        // Use the same main query as the other function
+        const mainQuery = `
             SELECT 
-                ls.id as schedule_id,
-                ls.installment_number,
-                ls.due_date,
-                ls.principal_due,
-                ls.interest_due,
-                ls.total_due,
-                ls.principal_paid,
-                ls.interest_paid,
-                ls.total_paid,
-                ls.penalty_amount,
-                ls.status as schedule_status,
-                (ls.total_due - ls.total_paid) as outstanding_amount,
+                -- Loan details 
+                l.id as loan_id, 
+                l.loan_number, 
+                l.loan_account, 
+                l.applied_amount, 
+                l.disbursed_amount, 
+                l.loan_balance, 
+                l.performance_class, 
+                l.branch, 
+                l.disbursement_date,
+                l.maturity_date,
+                l.status as loan_status,
+                
+                -- Client details 
+                c.id as client_id, 
+                c.client_number, 
+                c.first_name as client_first_name, 
+                c.last_name as client_last_name, 
+                c.mobile as client_mobile, 
+                c.email as client_email, 
+                CONCAT(c.first_name, ' ', c.last_name) as client_name, 
+                
+                -- Loan officer details 
+                u.first_name as officer_first_name, 
+                u.last_name as officer_last_name, 
+                u.employee_id as officer_employee_id, 
+                CONCAT(u.first_name, ' ', u.last_name) as officer_name,
+                
+                -- Aggregated schedule data for this loan
+                COUNT(ls.id) as total_schedules,
+                SUM(ls.principal_due) as total_principal_due,
+                SUM(ls.interest_due) as total_interest_due,
+                SUM(ls.total_due) as total_amount_due,
+                SUM(ls.principal_paid) as total_principal_paid,
+                SUM(ls.interest_paid) as total_interest_paid,
+                SUM(ls.total_paid) as total_amount_paid,
+                SUM(ls.total_due - ls.total_paid) as total_outstanding,
+                
+                -- Next due date and amount
+                MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.due_date END) as next_due_date,
+                MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.total_due - ls.total_paid END) as next_due_amount,
+                
+                -- Overdue information
+                COUNT(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) as overdue_schedules,
+                SUM(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as overdue_amount,
+                MAX(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN DATEDIFF(CURDATE(), ls.due_date) ELSE 0 END) as days_overdue,
+                
+                -- Status determination
                 CASE 
-                    WHEN ls.due_date < CURDATE() THEN DATEDIFF(CURDATE(), ls.due_date)
-                    ELSE 0 
-                END as days_overdue,
-                CASE 
-                    WHEN ls.due_date < CURDATE() THEN 'Overdue'
-                    WHEN ls.due_date = CURDATE() THEN 'Due Today'
-                    WHEN ls.due_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN 'Due Soon'
+                    WHEN COUNT(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) > 0 THEN 'Overdue'
+                    WHEN COUNT(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) > 0 THEN 'Due Today'
+                    WHEN COUNT(CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 END) > 0 THEN 'Due Soon'
                     ELSE 'Future'
                 END as due_status,
                 
-                -- Loan details
-                l.id as loan_id,
-                l.loan_number,
-                l.loan_account,
-                l.applied_amount,
-                l.disbursed_amount,
-                l.loan_balance,
-                l.performance_class,
-                l.branch,
-                l.disbursement_date,
+                -- Last payment info
+                MAX(ls.payment_date) as last_payment_date,
+                SUM(CASE WHEN ls.payment_date = (SELECT MAX(payment_date) FROM loan_schedules WHERE loan_id = l.id) THEN ls.total_paid ELSE 0 END) as last_payment_amount
                 
-                -- Client details
-                c.id as client_id,
-                c.client_number,
-                c.first_name as client_first_name,
-                c.last_name as client_last_name,
-                c.mobile as client_mobile,
-                c.email as client_email,
-                CONCAT(c.first_name, ' ', c.last_name) as client_name,
-                
-                -- Loan officer details
-                u.first_name as officer_first_name,
-                u.last_name as officer_last_name,
-                u.employee_id as officer_employee_id,
-                CONCAT(u.first_name, ' ', u.last_name) as officer_name
-                
-            FROM loan_schedules ls
-            JOIN loans l ON ls.loan_id = l.id
-            JOIN clients c ON l.client_id = c.id
-            LEFT JOIN users u ON l.loan_officer_id = u.id
-            ${whereClause}
-            ${orderByClause}
+            FROM loan_schedules ls 
+            JOIN loans l ON ls.loan_id = l.id 
+            JOIN clients c ON l.client_id = c.id 
+            LEFT JOIN users u ON l.loan_officer_id = u.id 
+            ${whereClause} 
+            GROUP BY l.id, l.loan_number, l.loan_account, l.applied_amount, l.disbursed_amount, l.loan_balance, 
+                     l.performance_class, l.branch, l.disbursement_date, l.maturity_date, l.status,
+                     c.id, c.client_number, c.first_name, c.last_name, c.mobile, c.email,
+                     u.id, u.first_name, u.last_name, u.employee_id
+            ORDER BY 
+                CASE 
+                    WHEN '${sort_by}' = 'client_name' THEN c.first_name
+                    WHEN '${sort_by}' = 'loan_number' THEN l.loan_number
+                    WHEN '${sort_by}' = 'next_due_date' THEN MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.due_date END)
+                    WHEN '${sort_by}' = 'total_outstanding' THEN SUM(ls.total_due - ls.total_paid)
+                    WHEN '${sort_by}' = 'days_overdue' THEN MAX(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN DATEDIFF(CURDATE(), ls.due_date) ELSE 0 END)
+                    ELSE MIN(CASE WHEN ls.status IN ('pending', 'partial') THEN ls.due_date END)
+                END ${sort_order}
             LIMIT ? OFFSET ?
-        `, {
-            replacements: mainQueryReplacements
+        `;
+
+        const mainQueryReplacements = [...replacements, parseInt(limit), parseInt(offset)];
+        const dueLoans = await sequelize.query(mainQuery, { 
+            replacements: mainQueryReplacements, 
+            type: sequelize.QueryTypes.SELECT 
         });
 
-        // Calculate summary statistics using the same where clause but different replacements
-        const [summaryResult] = await sequelize.query(`
+        // Same summary query as the other function
+        const summaryQuery = `
             SELECT 
-                COUNT(*) as total_schedules,
-                SUM(ls.total_due - ls.total_paid) as total_outstanding,
-                SUM(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 ELSE 0 END) as overdue_count,
-                SUM(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) ELSE 0 END) as overdue_amount,
-                SUM(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 ELSE 0 END) as due_today_count,
-                SUM(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) ELSE 0 END) as due_today_amount,
-                SUM(CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 ELSE 0 END) as due_soon_count,
-                SUM(CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) ELSE 0 END) as due_soon_amount
-            FROM loan_schedules ls
-            JOIN loans l ON ls.loan_id = l.id
-            JOIN clients c ON l.client_id = c.id
+                COUNT(DISTINCT l.id) as total_loans,
+                COUNT(ls.id) as total_schedules, 
+                SUM(ls.total_due - ls.total_paid) as total_outstanding, 
+                COUNT(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) as overdue_schedules,
+                SUM(CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as overdue_amount, 
+                COUNT(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) as due_today_schedules,
+                SUM(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as due_today_amount, 
+                COUNT(CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 END) as due_soon_schedules,
+                SUM(CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) END) as due_soon_amount,
+                
+                -- Loan-level counts
+                COUNT(DISTINCT CASE WHEN ls.due_date < CURDATE() AND ls.status IN ('pending', 'partial') THEN l.id END) as overdue_loans,
+                COUNT(DISTINCT CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN l.id END) as due_today_loans,
+                COUNT(DISTINCT CASE WHEN ls.due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN l.id END) as due_soon_loans
+                
+            FROM loan_schedules ls 
+            JOIN loans l ON ls.loan_id = l.id 
+            JOIN clients c ON l.client_id = c.id 
             ${whereClause}
-        `, { replacements: summaryReplacements });
+        `;
 
+        const summaryResult = await sequelize.query(summaryQuery, { 
+            replacements: summaryReplacements, 
+            type: sequelize.QueryTypes.SELECT 
+        });
         const summary = summaryResult[0];
 
-        console.log(`📊 Found ${dueLoans.length} due loan schedules`);
-
+                console.log(`📊 Found ${dueLoans.length} loans with due schedules in date range`);
+        
         res.status(200).json({
             success: true,
             data: {
-                due_loans: dueLoans,
+                due_loans: dueLoans.map(loan => ({
+                    // Loan information
+                    loan_id: loan.loan_id,
+                    loan_number: loan.loan_number,
+                    loan_account: loan.loan_account,
+                    loan_status: loan.loan_status,
+                    applied_amount: parseFloat(loan.applied_amount || 0),
+                    disbursed_amount: parseFloat(loan.disbursed_amount || 0),
+                    loan_balance: parseFloat(loan.loan_balance || 0),
+                    performance_class: loan.performance_class,
+                    branch: loan.branch,
+                    disbursement_date: loan.disbursement_date,
+                    maturity_date: loan.maturity_date,
+                    
+                    // Client information
+                    client_id: loan.client_id,
+                    client_number: loan.client_number,
+                    client_name: loan.client_name,
+                    client_first_name: loan.client_first_name,
+                    client_last_name: loan.client_last_name,
+                    client_mobile: loan.client_mobile,
+                    client_email: loan.client_email,
+                    
+                    // Loan officer information
+                    officer_name: loan.officer_name,
+                    officer_employee_id: loan.officer_employee_id,
+                    
+                    // Schedule aggregations
+                    total_schedules: parseInt(loan.total_schedules || 0),
+                    total_principal_due: parseFloat(loan.total_principal_due || 0),
+                    total_interest_due: parseFloat(loan.total_interest_due || 0),
+                    total_amount_due: parseFloat(loan.total_amount_due || 0),
+                    total_principal_paid: parseFloat(loan.total_principal_paid || 0),
+                    total_interest_paid: parseFloat(loan.total_interest_paid || 0),
+                    total_amount_paid: parseFloat(loan.total_amount_paid || 0),
+                    total_outstanding: parseFloat(loan.total_outstanding || 0),
+                    
+                    // Next due information
+                    next_due_date: loan.next_due_date,
+                    next_due_amount: parseFloat(loan.next_due_amount || 0),
+                    
+                    // Overdue information
+                    overdue_schedules: parseInt(loan.overdue_schedules || 0),
+                    overdue_amount: parseFloat(loan.overdue_amount || 0),
+                    days_overdue: parseInt(loan.days_overdue || 0),
+                    due_status: loan.due_status,
+                    
+                    // Payment information
+                    last_payment_date: loan.last_payment_date,
+                    last_payment_amount: parseFloat(loan.last_payment_amount || 0)
+                })),
                 summary: {
-                    total_schedules: parseInt(summary.total_schedules),
+                    total_loans: parseInt(summary.total_loans || 0),
+                    total_schedules: parseInt(summary.total_schedules || 0),
                     total_outstanding: parseFloat(summary.total_outstanding || 0),
                     overdue: {
-                        count: parseInt(summary.overdue_count),
+                        loans: parseInt(summary.overdue_loans || 0),
+                        schedules: parseInt(summary.overdue_schedules || 0),
                         amount: parseFloat(summary.overdue_amount || 0)
                     },
                     due_today: {
-                        count: parseInt(summary.due_today_count),
+                        loans: parseInt(summary.due_today_loans || 0),
+                        schedules: parseInt(summary.due_today_schedules || 0),
                         amount: parseFloat(summary.due_today_amount || 0)
                     },
                     due_soon: {
-                        count: parseInt(summary.due_soon_count),
+                        loans: parseInt(summary.due_soon_loans || 0),
+                        schedules: parseInt(summary.due_soon_schedules || 0),
                         amount: parseFloat(summary.due_soon_amount || 0)
                     }
                 },
@@ -258,18 +600,18 @@ const getDueLoans = async (req, res) => {
                 }
             }
         });
-
     } catch (error) {
-        console.error('Get due loans error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching due loans',
-            error: error.message
-        });
+        console.error('Get due loans with date range error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching due loans', error: error.message });
     }
 };
 
-// Rest of your controller functions remain the same...
+
+
+
+
+
+// Rest of the controller functions remain the same...
 const getDueLoansSummary = async (req, res) => {
     try {
         const {
@@ -309,7 +651,7 @@ const getDueLoansSummary = async (req, res) => {
         }
 
         // Get comprehensive summary
-        const [summaryResult] = await sequelize.query(`
+        const summaryQuery = `
             SELECT 
                 -- Overall totals
                 COUNT(DISTINCT l.id) as total_loans,
@@ -329,7 +671,7 @@ const getDueLoansSummary = async (req, res) => {
                 COUNT(DISTINCT CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN l.id END) as due_today_loans,
                 
                 -- Due this week
-                                SUM(CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 ELSE 0 END) as due_week_schedules,
+                SUM(CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 ELSE 0 END) as due_week_schedules,
                 SUM(CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) ELSE 0 END) as due_week_amount,
                 COUNT(DISTINCT CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN l.id END) as due_week_loans,
                 
@@ -344,8 +686,9 @@ const getDueLoansSummary = async (req, res) => {
             JOIN loans l ON ls.loan_id = l.id
             JOIN clients c ON l.client_id = c.id
             ${whereClause}
-        `, { replacements });
+        `;
 
+        const [summaryResult] = await sequelize.query(summaryQuery, { replacements, type: sequelize.QueryTypes.SELECT });
         const summary = summaryResult[0];
 
         res.status(200).json({
@@ -507,24 +850,23 @@ const exportDueLoans = async (req, res) => {
             replacements.push(status);
         }
 
+        // Only include active loans
         conditions.push('l.status IN (?, ?)');
         replacements.push('active', 'disbursed');
 
+        // Additional filters
         if (loan_officer_id) {
             conditions.push('l.loan_officer_id = ?');
             replacements.push(loan_officer_id);
         }
-
         if (branch) {
             conditions.push('l.branch = ?');
             replacements.push(branch);
         }
-
         if (performance_class) {
             conditions.push('l.performance_class = ?');
             replacements.push(performance_class);
         }
-
         if (search) {
             conditions.push('(l.loan_number LIKE ? OR l.loan_account LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.client_number LIKE ?)');
             const searchTerm = `%${search}%`;
@@ -536,47 +878,44 @@ const exportDueLoans = async (req, res) => {
         }
 
         // Get export data
-        const [exportData] = await sequelize.query(`
-            SELECT 
-                l.loan_number as 'Loan Number',
-                l.loan_account as 'Loan Account',
-                CONCAT(c.first_name, ' ', c.last_name) as 'Client Name',
-                c.client_number as 'Client Number',
-                c.mobile as 'Client Mobile',
-                ls.due_date as 'Due Date',
-                ls.installment_number as 'Installment #',
-                ls.principal_due as 'Principal Due',
-                ls.interest_due as 'Interest Due',
-                ls.total_due as 'Total Due',
-                ls.principal_paid as 'Principal Paid',
-                ls.interest_paid as 'Interest Paid',
-                ls.total_paid as 'Total Paid',
-                (ls.total_due - ls.total_paid) as 'Outstanding Amount',
-                ls.penalty_amount as 'Penalty Amount',
-                ls.status as 'Schedule Status',
-                CASE 
-                    WHEN ls.due_date < CURDATE() THEN DATEDIFF(CURDATE(), ls.due_date)
-                    ELSE 0 
-                END as 'Days Overdue',
-                CASE 
-                    WHEN ls.due_date < CURDATE() THEN 'Overdue'
-                    WHEN ls.due_date = CURDATE() THEN 'Due Today'
-                    WHEN ls.due_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN 'Due Soon'
-                    ELSE 'Future'
-                END as 'Due Status',
-                l.performance_class as 'Performance Class',
-                l.branch as 'Branch',
-                CONCAT(u.first_name, ' ', u.last_name) as 'Loan Officer',
-                l.disbursement_date as 'Disbursement Date',
-                l.loan_balance as 'Loan Balance'
-                
-            FROM loan_schedules ls
-            JOIN loans l ON ls.loan_id = l.id
-            JOIN clients c ON l.client_id = c.id
-            LEFT JOIN users u ON l.loan_officer_id = u.id
-            ${whereClause}
-            ORDER BY ls.due_date ASC, c.first_name ASC
-        `, { replacements });
+        const exportQuery = `SELECT 
+            l.loan_number,
+            l.loan_account,
+            c.client_number,
+            c.first_name,
+            c.last_name,
+            c.mobile,
+            c.email,
+            ls.installment_number,
+            ls.due_date,
+            ls.principal_due,
+            ls.interest_due,
+            ls.total_due,
+            ls.principal_paid,
+            ls.interest_paid,
+            ls.total_paid,
+            (ls.total_due - ls.total_paid) as outstanding_amount,
+            ls.penalty_amount,
+            ls.status as schedule_status,
+            l.performance_class,
+            l.branch,
+            l.loan_balance,
+            CASE WHEN ls.due_date < CURDATE() THEN DATEDIFF(CURDATE(), ls.due_date) ELSE 0 END as days_overdue,
+            CASE 
+                WHEN ls.due_date < CURDATE() THEN 'Overdue' 
+                WHEN ls.due_date = CURDATE() THEN 'Due Today' 
+                WHEN ls.due_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN 'Due Soon' 
+                ELSE 'Future' 
+            END as due_status,
+            CONCAT(u.first_name, ' ', u.last_name) as loan_officer
+        FROM loan_schedules ls
+        JOIN loans l ON ls.loan_id = l.id
+        JOIN clients c ON l.client_id = c.id
+        LEFT JOIN users u ON l.loan_officer_id = u.id
+        ${whereClause}
+        ORDER BY ls.due_date ASC, c.first_name ASC`;
+
+        const [exportData] = await sequelize.query(exportQuery, { replacements, type: sequelize.QueryTypes.SELECT });
 
         if (format === 'csv') {
             // Convert to CSV
@@ -604,7 +943,7 @@ const exportDueLoans = async (req, res) => {
             ].join('\n');
 
             res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', `attachment; filename="due-loans-${start_date}-to-${end_date}.csv"`);
+            res.setHeader('Content-Disposition', `attachment; filename="due-loans-${start_date || 'today'}-to-${end_date || 'today'}.csv"`);
             res.send(csvContent);
         } else {
             // Return JSON
@@ -645,7 +984,7 @@ const getDashboardStats = async (req, res) => {
         const today = new Date().toISOString().split('T')[0];
         const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const [dashboardStats] = await sequelize.query(`
+        const dashboardQuery = `
             SELECT 
                 -- Today's due loans
                 COUNT(CASE WHEN ls.due_date = CURDATE() AND ls.status IN ('pending', 'partial') THEN 1 END) as due_today_count,
@@ -659,7 +998,7 @@ const getDashboardStats = async (req, res) => {
                 COUNT(CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN 1 END) as due_week_count,
                 SUM(CASE WHEN ls.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND ls.status IN ('pending', 'partial') THEN (ls.total_due - ls.total_paid) ELSE 0 END) as due_week_amount,
                 
-                                -- Total active portfolio
+                -- Total active portfolio
                 COUNT(DISTINCT l.id) as total_active_loans,
                 SUM(l.loan_balance) as total_portfolio_balance,
                 
@@ -681,8 +1020,9 @@ const getDashboardStats = async (req, res) => {
             JOIN loans l ON ls.loan_id = l.id
             JOIN clients c ON l.client_id = c.id
             WHERE l.status IN ('active', 'disbursed')
-        `);
+        `;
 
+        const [dashboardStats] = await sequelize.query(dashboardQuery, { type: sequelize.QueryTypes.SELECT });
         const stats = dashboardStats[0];
 
         // Calculate collection rate
@@ -691,7 +1031,7 @@ const getDashboardStats = async (req, res) => {
             : 0;
 
         // Get branch-wise breakdown
-        const [branchStats] = await sequelize.query(`
+        const branchQuery = `
             SELECT 
                 l.branch,
                 COUNT(DISTINCT l.id) as loan_count,
@@ -703,10 +1043,12 @@ const getDashboardStats = async (req, res) => {
             WHERE l.status IN ('active', 'disbursed')
             GROUP BY l.branch
             ORDER BY portfolio_balance DESC
-        `);
+        `;
+
+        const [branchStats] = await sequelize.query(branchQuery, { type: sequelize.QueryTypes.SELECT });
 
         // Get loan officer performance
-        const [officerStats] = await sequelize.query(`
+        const officerQuery = `
             SELECT 
                 u.id as officer_id,
                 CONCAT(u.first_name, ' ', u.last_name) as officer_name,
@@ -724,7 +1066,9 @@ const getDashboardStats = async (req, res) => {
             GROUP BY u.id, u.first_name, u.last_name, u.employee_id
             ORDER BY portfolio_balance DESC
             LIMIT 10
-        `);
+        `;
+
+        const [officerStats] = await sequelize.query(officerQuery, { type: sequelize.QueryTypes.SELECT });
 
         res.status(200).json({
             success: true,
@@ -794,7 +1138,8 @@ const getDashboardStats = async (req, res) => {
 };
 
 module.exports = {
-    getDueLoans,
+    getDueLoansWithoutDateRange,
+    getDueLoansWithDateRange,
     getDueLoansSummary,
     updateOverdueLoans,
     exportDueLoans,

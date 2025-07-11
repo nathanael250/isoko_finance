@@ -424,6 +424,45 @@ const updateClient = async (req, res) => {
     }
 };
 
+const assignOfficer = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assigned_officer } = req.body;
+
+        if (!assigned_officer) {
+            return res.status(400).json({
+                success: false,
+                message: 'assigned_officer is required'
+            });
+        }
+
+        await sequelize.query(
+            'UPDATE clients SET assigned_officer = ?, updated_at = NOW() WHERE id = ?',
+            { replacements: [assigned_officer, id] }
+        );
+
+        // Get updated client
+        const [clients] = await sequelize.query(
+            'SELECT * FROM clients WHERE id = ?',
+            { replacements: [id] }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Loan officer assigned successfully',
+            data: { client: clients[0] }
+        });
+
+    } catch (error) {
+        console.error('Assign officer error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error assigning loan officer',
+            error: error.message
+        });
+    }
+};
+
 const deleteClient = async (req, res) => {
     try {
         const { id } = req.params;
@@ -562,6 +601,7 @@ module.exports = {
     getClients,
     getClient,
     updateClient,
+    assignOfficer,
     deleteClient,
     approveClient,
     uploadClientFiles,
